@@ -14,11 +14,13 @@ type statusInfo struct {
 	Code        int      `json:"code"`
 	Description string   `json:"description"`
 	Details     []string `json:"details"`
+	// set on some failures, e.g. originalKsefNumber for a duplicate invoice
+	Extensions map[string]string `json:"extensions"`
 }
 
 var (
 	pollInterval = time.Second
-	pollAttempts = 30
+	pollAttempts = 60
 )
 
 // authenticate exchanges the KSeF token for a short-lived access token:
