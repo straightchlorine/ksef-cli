@@ -1,0 +1,20 @@
+when:
+  - event: [push, pull_request, tag]
+
+steps:
+  check:
+    image: golang:1.26
+    commands:
+      - test -z "$(gofmt -l .)"
+      - go vet ./...
+      - go test ./...
+
+  release:
+    image: goreleaser/goreleaser:latest
+    commands:
+      - goreleaser release --clean
+    environment:
+      GITEA_TOKEN:
+        from_secret: gitea_token
+    when:
+      - event: tag
