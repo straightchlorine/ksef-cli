@@ -29,7 +29,8 @@ unknown_key_from_other_tool=ignored
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Env != "demo" || cfg.NIP != "1234567890" || cfg.Token != "secret" || cfg.CacheDir != "/tmp/ksef-test-cache" {
+	if cfg.Env != "demo" || cfg.NIP != "1234567890" || cfg.Token != "secret" ||
+		cfg.CacheDir != "/tmp/ksef-test-cache" {
 		t.Errorf("got %+v", cfg)
 	}
 }
@@ -52,7 +53,7 @@ func TestParseValue(t *testing.T) {
 	}
 }
 
-// The README's own config example must parse -- inline comments included.
+// The README's own config example must parse - inline comments included.
 func TestReadmeExampleParses(t *testing.T) {
 	writeConf(t, `
 env=test          # test | demo | prod
