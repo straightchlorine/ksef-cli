@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Faktura xmlns:etd="http://crd.gov.pl/xml/schematy/dziedzinowe/mf/2022/01/05/eD/DefinicjeTypy/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://crd.gov.pl/wzor/2025/06/25/13775/">
+  <Naglowek>
+    <KodFormularza kodSystemowy="FA (3)" wersjaSchemy="1-0E">FA</KodFormularza>
+    <WariantFormularza>3</WariantFormularza>
+    <DataWytworzeniaFa>{{.Created}}</DataWytworzeniaFa>
+    <SystemInfo>ksef-cli</SystemInfo>
+  </Naglowek>
+  <Podmiot1>
+    <DaneIdentyfikacyjne>
+      <NIP>{{.Seller.NIP}}</NIP>
+      <Nazwa>{{.Seller.Name}}</Nazwa>
+    </DaneIdentyfikacyjne>
+{{template "party" .Seller}}
+  </Podmiot1>
+  <Podmiot2>
+    <DaneIdentyfikacyjne>
+{{- if .Buyer.NIP}}
+      <NIP>{{.Buyer.NIP}}</NIP>
+{{- else if .Buyer.NrVatUE}}
+      <KodUE>{{.Buyer.KodUE}}</KodUE>
+      <NrVatUE>{{.Buyer.NrVatUE}}</NrVatUE>
+{{- else if .Buyer.NrID}}
+      <KodKraju>{{.Buyer.Country}}</KodKraju>
+      <NrID>{{.Buyer.NrID}}</NrID>
+{{- else}}
+      <BrakID>1</BrakID>
+{{- end}}
+      <Nazwa>{{.Buyer.Name}}</Nazwa>
+    </DaneIdentyfikacyjne>
+{{template "party" .Buyer}}
+    <JST>2</JST>
+    <GV>2</GV>
+  </Podmiot2>
+  <Fa>
+    <KodWaluty>{{.Currency}}</KodWaluty>
+    <P_1>{{.Issued}}</P_1>
+    <P_2>{{.Number}}</P_2>
+{{- if .SaleDate}}
+    <P_6>{{.SaleDate}}</P_6>
+{{- end}}
+    <P_13_7>{{.Total}}</P_13_7>
+    <P_15>{{.Total}}</P_15>
+    <Adnotacje>
+      <P_16>2</P_16>
+      <P_17>2</P_17>
+      <P_18>2</P_18>
+      <P_18A>2</P_18A>
+      <Zwolnienie>
+        <P_19>1</P_19>
+        <P_19A>{{.Exemption}}</P_19A>
+      </Zwolnienie>
+      <NoweSrodkiTransportu>
+        <P_22N>1</P_22N>
+      </NoweSrodkiTransportu>
+      <P_23>2</P_23>
+      <PMarzy>
+        <P_PMarzyN>1</P_PMarzyN>
+      </PMarzy>
+    </Adnotacje>
+    <RodzajFaktury>VAT</RodzajFaktury>
+{{- range .Lines}}
+    <FaWiersz>
+      <NrWierszaFa>{{.Nr}}</NrWierszaFa>
+      <P_7>{{.Name}}</P_7>
+{{- if $.Unit}}
+      <P_8A>{{$.Unit}}</P_8A>
+{{- end}}
+      <P_8B>{{.Quantity}}</P_8B>
+      <P_9B>{{.UnitPrice}}</P_9B>
+      <P_11A>{{.Total}}</P_11A>
+      <P_12>zw</P_12>
+{{- if $.Rate}}
+      <KursWaluty>{{$.Rate}}</KursWaluty>
+{{- end}}
+    </FaWiersz>
+{{- end}}
+{{- if or .PaidDate .DueDate .Account}}
+    <Platnosc>
+{{- if .PaidDate}}
+      <Zaplacono>1</Zaplacono>
+      <DataZaplaty>{{.PaidDate}}</DataZaplaty>
+{{- end}}
+{{- if .DueDate}}
+      <TerminPlatnosci>
+        <Termin>{{.DueDate}}</Termin>
+      </TerminPlatnosci>
+{{- end}}
+{{- if .Account}}
+      <FormaPlatnosci>6</FormaPlatnosci>
+      <RachunekBankowy>
+        <NrRB>{{.Account}}</NrRB>
+{{- if .BankName}}
+        <NazwaBanku>{{.BankName}}</NazwaBanku>
+{{- end}}
+{{- if .AccountName}}
+        <OpisRachunku>{{.AccountName}}</OpisRachunku>
+{{- end}}
+      </RachunekBankowy>
+{{- end}}
+    </Platnosc>
+{{- end}}
+  </Fa>
+{{- if or .Notes .REGON}}
+  <Stopka>
+{{- if .Notes}}
+    <Informacje>
+      <StopkaFaktury>{{.Notes}}</StopkaFaktury>
+    </Informacje>
+{{- end}}
+{{- if .REGON}}
+    <Rejestry>
+      <REGON>{{.REGON}}</REGON>
+    </Rejestry>
+{{- end}}
+  </Stopka>
+{{- end}}
+</Faktura>
+{{define "party"}}    <Adres>
+      <KodKraju>{{.Country}}</KodKraju>
+      <AdresL1>{{.Addr1}}</AdresL1>
+      <AdresL2>{{.Addr2}}</AdresL2>
+    </Adres>
+{{- if or .Email .Phone}}
+    <DaneKontaktowe>
+{{- if .Email}}
+      <Email>{{.Email}}</Email>
+{{- end}}
+{{- if .Phone}}
+      <Telefon>{{.Phone}}</Telefon>
+{{- end}}
+    </DaneKontaktowe>
+{{- end}}{{end -}}

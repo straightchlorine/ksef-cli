@@ -147,6 +147,8 @@ func apiCall(method, url, bearer string, in any) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// NBP's API refuses Go's default User-Agent
+	req.Header.Set("User-Agent", "ksef-cli/"+version)
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

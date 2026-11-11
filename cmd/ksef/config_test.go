@@ -23,6 +23,7 @@ env=demo
 nip = 1234567890
 ksef_token="secret"
 cache_dir='/tmp/ksef-test-cache'
+convert_options=--sale-date prev-month-end --paid
 unknown_key_from_other_tool=ignored
 `)
 	cfg, err := loadConfig()
@@ -30,6 +31,7 @@ unknown_key_from_other_tool=ignored
 		t.Fatal(err)
 	}
 	if cfg.Env != "demo" || cfg.NIP != "1234567890" || cfg.Token != "secret" ||
+		cfg.ConvertOptions != "--sale-date prev-month-end --paid" ||
 		cfg.CacheDir != "/tmp/ksef-test-cache" {
 		t.Errorf("got %+v", cfg)
 	}

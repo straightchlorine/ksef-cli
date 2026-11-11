@@ -13,6 +13,7 @@ var version = "dev"
 
 const usage = `Usage: ksef init [test|demo|prod]
        ksef selfcheck
+       ksef convert [OPTIONS] INVOICE [OUT.xml]
        ksef send FILE.xml
        ksef list [YEAR]
        ksef pull KSEF_NUMBER [OUT_FILE]
@@ -25,6 +26,24 @@ Subcommands:
               $KSEF_TOKEN when the token carries it.
   selfcheck   Checks the setup: AES/RSA crypto round-trip, KSeF's live
               published public key and, when a token is configured, a login.
+  convert     Turn an Invoify JSON or XML export into an FA(3) XML of a VAT-exempt
+              seller (art. 113), to stdout or OUT.xml. Read from the invoice:
+              the seller's NIP (custom field NIP), the buyer's id (custom
+              field NIP, VAT or NrID) and the buyer's country. A non-PLN
+              invoice gets NBP's rate from the last working day before the
+              invoice date. Options, all before the files:
+                --sale-date DATE      sale date (P_6), when it differs from the
+                                      invoice date; prev-month-end for the last
+                                      day of the month before it
+                --paid                mark as paid today
+                --paid-date DATE      mark as paid on DATE
+                --rate N              exchange rate, instead of NBP's
+                --rate-date DATE      NBP's rate for that day, or the last before
+                --buyer-country XX    when the country is not recognised
+                --buyer-id TEXT       buyer's foreign tax or register number
+                --unit TEXT           unit of measure for every line
+                                      (default: m-c, a month; "" for none)
+                --exemption TEXT      legal basis (default: art. 113 ust. 1)
   send        Send a ready FA XML invoice and wait until KSeF accepts it.
               Saves the UPO receipt next to it as FILE.upo.xml and prints the
               KSeF number and a public verification link.
@@ -41,6 +60,8 @@ default ~/.config/ksef.conf - same paths on every OS):
   ksef_token  KSeF token; $KSEF_TOKEN overrides it - leave the config value
               blank and export the secret instead
   cache_dir   public-key cache (default: ~/.cache/ksef)
+  convert_options
+              options that convert always starts with
 `
 
 func main() {
@@ -53,6 +74,8 @@ func main() {
 	switch cmd := os.Args[1]; cmd {
 	case "init":
 		err = cmdInit(os.Args[2:])
+	case "convert":
+		err = cmdConvert(os.Args[2:])
 	case "send":
 		err = cmdSend(os.Args[2:])
 	case "list":

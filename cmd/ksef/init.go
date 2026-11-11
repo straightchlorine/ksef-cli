@@ -23,6 +23,9 @@ ksef_token=
 
 # Public-key cache
 # cache_dir=~/.cache/ksef
+
+# Options that ksef convert always starts with, e.g.
+# convert_options=--sale-date prev-month-end --paid
 `
 
 var tokenNIP = regexp.MustCompile(`\|nip-(\d{10})\|`)

@@ -59,6 +59,7 @@ ksef_token=         # zostaw puste i ustaw KSEF_TOKEN
 | `nip`        | Twój NIP. Gdy go brak, `send` bierze NIP sprzedawcy z faktury.   |
 | `ksef_token` | Token KSeF. Zmienna `KSEF_TOKEN` zawsze ma pierwszeństwo.        |
 | `cache_dir`  | Katalog na klucze publiczne KSeF. Domyślnie `~/.cache/ksef`.     |
+| `convert_options` | Opcje, od których zawsze zaczyna `ksef convert`.               |
 
 Na dysk trafiają tylko klucze publiczne KSeF, odświeżane raz na dobę. Każde polecenie
 loguje się od nowa.
@@ -82,6 +83,71 @@ token jest ustawiony, loguje się.
 [  OK  ] RSA-OAEP against KSeF's live published public key (env=test)
 [  OK  ] KSeF login (env=test, nip=1234567891)
 ```
+
+### `ksef convert [OPCJE] FAKTURA [WYNIK.xml]`
+
+Zamienia eksport z [Invoify](https://github.com/al1abb/invoify) (JSON albo
+XML) na fakturę FA(3). Wynik trafia na wyjście albo do podanego pliku.
+Obecnie obsługuje tylko sprzedawców zwolnionych z VAT (art. 113).
+Faktury z podatkiem, rabatem albo kosztem wysyłki są odrzucane.
+
+```bash
+ksef convert faktura.json faktura.xml
+ksef send faktura.xml
+```
+
+Invoify nie ma pól na identyfikatory podatkowe, więc `convert` czyta je
+z pól dodatkowych (custom inputs):
+
+| Strona   | Pole       | Znaczenie                                        |
+|----------|------------|--------------------------------------------------|
+| nadawca  | `NIP`      | NIP sprzedawcy. Wymagany.                        |
+| nadawca  | `REGON`    | REGON, trafia do stopki.                         |
+| odbiorca | `NIP`      | Polski NIP nabywcy.                              |
+| odbiorca | `VAT`      | Numer VAT UE z prefiksem kraju, np. `DE123...`.  |
+| odbiorca | `NrID`     | Inny zagraniczny identyfikator.                  |
+| odbiorca | `KodKraju` | Dwuliterowy kod kraju nabywcy.                   |
+
+Pole `VAT` może też nazywać się `NrVatUE`, `VAT UE` albo `VAT ID`. Bez
+żadnego identyfikatora nabywca jest oznaczany jako podmiot bez
+identyfikatora. Kraj nabywcy to kod dwuliterowy (`DE`) albo nazwa po polsku
+lub angielsku (`Niemcy`, `Germany`).
+
+Opcje podaje się przed plikami. Dotyczą wartości, na które Invoify nie ma
+pól:
+
+| Opcja                | Znaczenie                                               |
+|----------------------|---------------------------------------------------------|
+| `--sale-date DATA`   | Data sprzedaży, gdy różni się od daty wystawienia.      |
+|                      | `prev-month-end`: ostatni dzień poprzedniego miesiąca.  |
+| `--paid`             | Oznacza fakturę jako zapłaconą dziś.                    |
+| `--paid-date DATA`   | Oznacza fakturę jako zapłaconą w podanym dniu.          |
+| `--rate KURS`        | Kurs waluty zamiast kursu NBP.                          |
+| `--rate-date DATA`   | Kurs średni NBP z tego dnia albo ostatni przed nim.     |
+| `--buyer-country XX` | Kod kraju nabywcy, gdy nazwa nie jest rozpoznana.       |
+| `--buyer-id TEKST`   | Zagraniczny identyfikator nabywcy.                      |
+| `--unit TEKST`       | Jednostka miary pozycji. Domyślnie `m-c` (miesiąc).     |
+| `--exemption TEKST`  | Podstawa zwolnienia. Domyślnie art. 113 ust. 1.         |
+
+Faktura w walucie obcej dostaje kurs średni NBP (tabela A, publiczne API)
+z ostatniego dnia roboczego przed datą wystawienia. `--rate-date` wybiera
+inny dzień, a `--rate` podaje kurs wprost.
+
+Przykład faktury w euro dla kontrahenta z Niemiec:
+
+```bash
+ksef convert --sale-date 2026-10-31 faktura.json faktura.xml
+```
+
+Regularnie używane opcje, można wpisać raz do `ksef.conf`. Parametry z wiersza
+poleceń mają pierwszeństwo:
+
+```
+convert_options=--sale-date prev-month-end --paid
+```
+
+Przejrzyj wynikowy XML przed wysyłką. Za treść faktury odpowiada jej
+wystawca.
 
 ### `ksef send FAKTURA.xml`
 
@@ -123,7 +189,8 @@ nieznanym poleceniu.
 
 ## Czego narzędzie nie robi
 
-- Nie tworzy faktur. Wejściem jest gotowy XML FA(3).
+- Nie tworzy faktur od zera. `convert` zamienia tylko eksport z Invoify,
+  i tylko dla sprzedawców zwolnionych z VAT.
 - Nie sprawdza faktury względem schematu XSD. Robi to KSeF przy wysyłce.
 - Nie pokazuje faktur zakupowych, tylko wystawione.
 - Nie obsługuje logowania certyfikatem (XAdES) ani sesji wsadowych.

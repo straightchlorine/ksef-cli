@@ -24,6 +24,9 @@ Narzędzie nie tworzy faktur!
 - Wypisuje numer KSeF i publiczny link faktury
 - Pokazuje faktury wystawione w danym roku i pobiera je z KSeF
 - Działa ze środowiskiem testowym, demo i produkcyjnym
+- Zamienia fakturę z [Invoify](https://github.com/al1abb/invoify) (eksport JSON
+  lub XML) na XML FA(3) dla sprzedawców zwolnionych z VAT (art. 113)
+- Dla faktur w walucie obcej pobiera kurs średni z publicznego API NBP
 
 ## Jak zacząć?
 

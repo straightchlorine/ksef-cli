@@ -16,6 +16,8 @@ type Config struct {
 	NIP      string
 	Token    string // $KSEF_TOKEN overrides the config file
 	CacheDir string
+	// default options for `ksef convert`
+	ConvertOptions string
 }
 
 // xdgPath returns $envVar/suffix, or ~/fallback/suffix when the variable is unset
@@ -98,6 +100,8 @@ func parseConfig(r io.Reader, cfg *Config) error {
 			cfg.Token = val
 		case "cache_dir":
 			cfg.CacheDir = expandHome(val)
+		case "convert_options":
+			cfg.ConvertOptions = val
 		}
 	}
 	return sc.Err()

@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[Polski](../README.md) &middot; [Documentation](index.md) &middot; [Codeberg](https://codeberg.org/piotrkrzysztof/ksef-cli)
+[Polski](../README.md) &middot; [Documentation](index.en.md) &middot; [Codeberg](https://codeberg.org/piotrkrzysztof/ksef-cli)
 
 Submitting invoices to KSeF from the command line.
 
@@ -24,6 +24,9 @@ The tool does not create invoices!
 - Prints the KSeF number and the invoice's public link
 - Lists the invoices issued in a given year and downloads them from KSeF
 - Works with the test, demo and production environments
+- Converts an [Invoify](https://github.com/al1abb/invoify) invoice (JSON or XML
+  export) into an FA(3) XML for VAT-exempt sellers (art. 113)
+- For foreign-currency invoices, fetches the mid rate from NBP's public API
 
 ## Getting started
 
@@ -52,8 +55,7 @@ for all businesses, regardless of their turnover.
 
 ## Documentation
 
-Configuration, token, commands and environments: [index.md](index.md) (in
-Polish).
+Configuration, token, commands and environments: [index.en.md](index.en.md).
 
 ## License
 
