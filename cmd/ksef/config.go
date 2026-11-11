@@ -70,9 +70,7 @@ func loadConfig() (*Config, error) {
 			return nil, errors.New("cache_dir not set and home directory unknown")
 		}
 	}
-	switch cfg.Env {
-	case "test", "demo", "prod":
-	default:
+	if _, ok := baseURLs[cfg.Env]; !ok {
 		return nil, fmt.Errorf("env must be test|demo|prod, got %q", cfg.Env)
 	}
 	return cfg, nil

@@ -159,6 +159,38 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		w.Write([]byte("<upo/>"))
 	})
 
+	// Two pages in the first quarter, nothing in the rest.
+	on("POST /invoices/query/metadata", "access-token", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			SubjectType string
+			DateRange   struct{ DateType, From, To string }
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("metadata query body: %v", err)
+		}
+		from, _ := time.Parse(time.RFC3339, req.DateRange.From)
+		to, err := time.Parse(time.RFC3339, req.DateRange.To)
+		if req.SubjectType != "Subject1" || req.DateRange.DateType != "Issue" || err != nil ||
+			!to.After(from) || to.After(from.AddDate(0, 3, 0)) {
+			t.Errorf("metadata query: %+v", req)
+		}
+		page := r.URL.Query().Get("pageOffset")
+		resp := map[string]any{"hasMore": false, "isTruncated": false, "invoices": []any{}}
+		if from.Month() == time.January {
+			resp["hasMore"] = page == "0"
+			resp["invoices"] = []map[string]any{{
+				"ksefNumber": "KSEF-NUMBER-" + page, "invoiceNumber": "FV/" + page,
+				"issueDate": "2025-01-1" + page, "grossAmount": 100.50, "currency": "PLN",
+				"buyer": map[string]string{"name": "Buyer"},
+			}}
+		}
+		reply(w, 200, resp)
+	})
+	stored := "GET /invoices/ksef/KSEF-NUMBER-1"
+	on(stored, "access-token", func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(sampleInvoice))
+	})
+
 	srv := httptest.NewServer(mux)
 	baseURLs["fake"] = srv.URL
 	oldInterval := pollInterval
