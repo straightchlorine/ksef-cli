@@ -54,6 +54,10 @@ dla wszystkich przedsiębiorców - niezależnie od ich dochodów.
 
 Konfiguracja, token, opis poleceń i środowisk: [docs/index.md](docs/index.md).
 
+## Licencja
+
+Licencja MIT. Szczegóły w pliku [LICENSE](LICENSE).
+
 ---
 
 <div align="center">

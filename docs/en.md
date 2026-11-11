@@ -55,6 +55,10 @@ for all businesses, regardless of their turnover.
 Configuration, token, commands and environments: [index.md](index.md) (in
 Polish).
 
+## License
+
+MIT License. See [LICENSE](../LICENSE) for details.
+
 ---
 
 <div align="center">
