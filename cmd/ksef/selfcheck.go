@@ -10,8 +10,8 @@ import (
 
 // cmdSelfcheck proves the crypto envelope works on this machine: AES and
 // RSA-OAEP round-trips with throwaway keys, then an encrypt against KSeF's
-// live published public key. The network step degrades to a warning - the
-// local crypto verdict is the point.
+// live published public key. An unreachable KSeF degrades to a warning.
+// With a token configured it also logs in, and a failed login is an error.
 func cmdSelfcheck() error {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -49,7 +49,7 @@ func cmdSelfcheck() error {
 	}
 	fmt.Println("[  OK  ] RSA-OAEP-SHA256 round-trip")
 
-	pub, err := publicKeyFor(cfg, "SymmetricKeyEncryption")
+	pub, _, err := publicKeyFor(cfg, "SymmetricKeyEncryption")
 	if err != nil {
 		fmt.Printf("[ WARN ] could not fetch KSeF's public key (env=%s): %v\n", cfg.Env, err)
 		return nil
@@ -58,5 +58,14 @@ func cmdSelfcheck() error {
 		return fmt.Errorf("RSA-OAEP against KSeF's key: %w", err)
 	}
 	fmt.Printf("[  OK  ] RSA-OAEP against KSeF's live published public key (env=%s)\n", cfg.Env)
+
+	if cfg.Token == "" {
+		fmt.Println("[ SKIP ] KSeF login - no token configured")
+		return nil
+	}
+	if _, err := authenticate(cfg); err != nil {
+		return fmt.Errorf("KSeF login: %w", err)
+	}
+	fmt.Printf("[  OK  ] KSeF login (env=%s, nip=%s)\n", cfg.Env, cfg.NIP)
 	return nil
 }

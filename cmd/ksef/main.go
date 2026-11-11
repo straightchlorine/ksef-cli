@@ -16,14 +16,14 @@ const usage = `Usage: ksef selfcheck
        ksef -h
 
 Subcommands:
-  selfcheck   AES/RSA crypto round-trip self-test (throwaway keys + KSeF's
-              live published public key). No KSeF token needed.
+  selfcheck   Checks the setup: AES/RSA crypto round-trip, KSeF's live
+              published public key and, when a token is configured, a login.
   version     Print version.
 
 Config (key=value; $KSEF_CONFIG if set, else $XDG_CONFIG_HOME/ksef.conf,
 default ~/.config/ksef.conf - same paths on every OS):
   env         test | demo | prod (default: test)
-  nip         your NIP (tax id) - not used by any subcommand yet
+  nip         your NIP (tax id) - the context you log in as
   ksef_token  KSeF token; $KSEF_TOKEN overrides it - leave the config value
               blank and export the secret instead
   cache_dir   public-key cache (default: ~/.cache/ksef)

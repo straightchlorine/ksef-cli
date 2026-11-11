@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
@@ -14,12 +15,10 @@ import (
 	"time"
 )
 
-func baseURL(env string) string {
-	return map[string]string{
-		"test": "https://api-test.ksef.mf.gov.pl/v2",
-		"demo": "https://api-demo.ksef.mf.gov.pl/v2",
-		"prod": "https://api.ksef.mf.gov.pl/v2",
-	}[env]
+var baseURLs = map[string]string{
+	"test": "https://api-test.ksef.mf.gov.pl/v2",
+	"demo": "https://api-demo.ksef.mf.gov.pl/v2",
+	"prod": "https://api.ksef.mf.gov.pl/v2",
 }
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}
@@ -47,8 +46,8 @@ func fetchPublicKeyCerts(cfg *Config) ([]publicKeyCert, error) {
 		}
 	}
 
-	url := baseURL(cfg.Env) + "/security/public-key-certificates"
-	body, err := httpGet(url)
+	url := baseURLs[cfg.Env] + "/security/public-key-certificates"
+	body, err := apiCall("GET", url, "", nil)
 	if err != nil {
 		if certs, cacheErr := readCerts(cache); cacheErr == nil {
 			fmt.Fprintf(os.Stderr, "[ WARN ] %v - using cached public keys\n", err)
@@ -105,43 +104,78 @@ func pickCert(certs []publicKeyCert, usage string, now time.Time) (*publicKeyCer
 	return best, nil
 }
 
-// publicKeyFor picks the environment's RSA public key for the given usage.
-func publicKeyFor(cfg *Config, usage string) (*rsa.PublicKey, error) {
+// publicKeyFor picks the environment's RSA public key for the given usage,
+// with the publicKeyId that tells KSeF which key was used.
+func publicKeyFor(cfg *Config, usage string) (*rsa.PublicKey, string, error) {
 	certs, err := fetchPublicKeyCerts(cfg)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	c, err := pickCert(certs, usage, time.Now())
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	der, err := base64.StdEncoding.DecodeString(c.Certificate)
 	if err != nil {
-		return nil, fmt.Errorf("certificate %s: %w", c.PublicKeyID, err)
+		return nil, "", fmt.Errorf("certificate %s: %w", c.PublicKeyID, err)
 	}
 	cert, err := x509.ParseCertificate(der)
 	if err != nil {
-		return nil, fmt.Errorf("certificate %s: %w", c.PublicKeyID, err)
+		return nil, "", fmt.Errorf("certificate %s: %w", c.PublicKeyID, err)
 	}
 	pub, ok := cert.PublicKey.(*rsa.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("certificate %s: not an RSA key (%T)", c.PublicKeyID, cert.PublicKey)
+		return nil, "", fmt.Errorf(
+			"certificate %s: not an RSA key (%T)", c.PublicKeyID, cert.PublicKey,
+		)
 	}
-	return pub, nil
+	return pub, c.PublicKeyID, nil
 }
 
-func httpGet(url string) ([]byte, error) {
-	resp, err := httpClient.Get(url)
+// apiCall sends in as a JSON body (nil for none) and returns the response body.
+// Any non-2xx status is an error carrying KSeF's own error body.
+func apiCall(method, url, bearer string, in any) ([]byte, error) {
+	var reqBody io.Reader
+	if in != nil {
+		b, err := json.Marshal(in)
+		if err != nil {
+			return nil, err
+		}
+		reqBody = bytes.NewReader(b)
+	}
+	req, err := http.NewRequest(method, url, reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if in != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+bearer)
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("GET %s: %w", url, err)
+		return nil, fmt.Errorf("%s %s: %w", method, url, err)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GET %s: %s: %s", url, resp.Status, body)
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("%s %s: %s: %s", method, url, resp.Status, body)
 	}
 	return body, nil
+}
+
+// apiJSON is apiCall with the response decoded into out.
+func apiJSON(method, url, bearer string, in, out any) error {
+	body, err := apiCall(method, url, bearer, in)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(body, out); err != nil {
+		return fmt.Errorf("%s %s: %w", method, url, err)
+	}
+	return nil
 }
