@@ -121,6 +121,7 @@ Options go before the files. They cover values Invoify has no fields for:
 |                      | `prev-month-end`: the last day of the previous month.    |
 | `--paid`             | Marks the invoice as paid today.                         |
 | `--paid-date DATE`   | Marks the invoice as paid on the given day.              |
+| `--due-date DATE`    | Payment due date, instead of the invoice's.              |
 | `--rate RATE`        | Exchange rate, instead of NBP's.                         |
 | `--rate-date DATE`   | NBP's mid rate for that day, or the last one before it.  |
 | `--buyer-country XX` | The buyer's country code, when the name is not known.    |
@@ -172,8 +173,11 @@ Sending invoice.xml to KSeF (env=test)...
 ### `ksef list [YEAR]`
 
 Shows the invoices issued in the given year with you as the seller, oldest
-first: date, invoice number, gross amount, buyer, KSeF number. Without an
-argument it takes the current year.
+first: date, invoice number, gross amount, buyer, mode, KSeF number. Without
+an argument it takes the current year.
+
+The mode is assigned by KSeF. `Offline` means the invoice reached KSeF later
+than the day it is dated.
 
 ### `ksef pull KSEF_NUMBER [FILE]`
 
@@ -185,7 +189,8 @@ saves it to the given file.
 Prints the program's version.
 
 Every command exits with code 0 on success, 1 on an error and 2 on an
-unknown command.
+unknown command. Messages are coloured only in a terminal. The `NO_COLOR`
+variable switches colours off.
 
 ## What the tool does not do
 

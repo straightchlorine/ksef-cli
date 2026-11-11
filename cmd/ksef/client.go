@@ -50,7 +50,8 @@ func fetchPublicKeyCerts(cfg *Config) ([]publicKeyCert, error) {
 	body, err := apiCall("GET", url, "", nil)
 	if err != nil {
 		if certs, cacheErr := readCerts(cache); cacheErr == nil {
-			fmt.Fprintf(os.Stderr, "[ WARN ] %v - using cached public keys\n", err)
+			fmt.Fprintf(os.Stderr, "%s %v - using cached public keys\n",
+				paint(os.Stderr, yellow, "[ WARN ]"), err)
 			return certs, nil
 		}
 		return nil, err

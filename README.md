@@ -16,7 +16,7 @@ szyfruje fakturę, wysyła ją i czeka, aż KSeF ją przyjmie.
 Na koniec zapisuje UPO obok faktury i wypisuje numer KSeF wraz z publicznym linkiem
 do weryfikacji.
 
-Narzędzie nie tworzy faktur!
+Narzędzie nie tworzy faktur od zera!
 
 ## Funkcje
 
@@ -44,11 +44,11 @@ ksef list                  # faktury wystawione w tym roku
 ksef pull NUMER_KSEF       # pobiera fakturę zapisaną w KSeF
 ```
 
-Zacznij od środowiska testowego. Zmianę na środowisko produkcyjne powinno nastąpić
+Zacznij od środowiska testowego. Zmiana na środowisko produkcyjne powinna nastąpić
 dopiero po zweryfikowaniu poprawności informacji na instancji testowej.
 
 Pamiętać należy, że każdy wpis na produkcyjną witrynę KSeF ma konsekwencje prawne.
-Zgodnie z [oświadczeniem Ministerstwa Finansów](https://www.gov.pl/web/finanse/przedluzenie-odroczenia-kar-za-bledy-w-stosowaniu-ksef-do-konca-2027-r?trk=public_post_comment-text),
+Zgodnie z [oświadczeniem Ministerstwa Finansów](https://www.gov.pl/web/finanse/przedluzenie-odroczenia-kar-za-bledy-w-stosowaniu-ksef-do-konca-2027-r),
 do końca 2027 roku kary pieniężne za błędy w stosowaniu systemu nie będą jeszcze
 egzekwowane. Publikowanie faktur w KSeF jest jednak [obowiązkowe od 1 stycznia 2027 roku](https://ksef.podatki.gov.pl/informacje-ogolne-ksef-20/zakres-obowiazkowego-ksef)
 dla wszystkich przedsiębiorców - niezależnie od ich dochodów.

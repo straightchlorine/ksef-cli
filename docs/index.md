@@ -16,7 +16,7 @@ Polecenie instaluje program `ksef` w `~/go/bin`.
 ## Token KSeF
 
 Token generowany jest raz, ręcznie, w Aplikacji Podatnika KSeF. Każde środowisko
-ma własną instancje i własne tokeny.
+ma własną instancję i własne tokeny.
 
 1. Zaloguj się do Aplikacji Podatnika wybranego środowiska (adresy niżej).
 2. Otwórz zakładkę „Tokeny" i wybierz „Generuj token".
@@ -122,6 +122,7 @@ pól:
 |                      | `prev-month-end`: ostatni dzień poprzedniego miesiąca.  |
 | `--paid`             | Oznacza fakturę jako zapłaconą dziś.                    |
 | `--paid-date DATA`   | Oznacza fakturę jako zapłaconą w podanym dniu.          |
+| `--due-date DATA`    | Termin płatności zamiast tego z faktury.                |
 | `--rate KURS`        | Kurs waluty zamiast kursu NBP.                          |
 | `--rate-date DATA`   | Kurs średni NBP z tego dnia albo ostatni przed nim.     |
 | `--buyer-country XX` | Kod kraju nabywcy, gdy nazwa nie jest rozpoznana.       |
@@ -139,7 +140,7 @@ Przykład faktury w euro dla kontrahenta z Niemiec:
 ksef convert --sale-date 2026-10-31 faktura.json faktura.xml
 ```
 
-Regularnie używane opcje, można wpisać raz do `ksef.conf`. Parametry z wiersza
+Regularnie używane opcje można wpisać raz do `ksef.conf`. Parametry z wiersza
 poleceń mają pierwszeństwo:
 
 ```
@@ -172,8 +173,11 @@ Sending faktura.xml to KSeF (env=test)...
 ### `ksef list [ROK]`
 
 Pokazuje faktury wystawione w danym roku, w których jesteś sprzedawcą, od
-najstarszej: data, numer faktury, kwota brutto, nabywca, numer KSeF. Bez
+najstarszej: data, numer faktury, kwota brutto, nabywca, tryb, numer KSeF. Bez
 argumentu bierze bieżący rok.
+
+Tryb nadaje KSeF. `Offline` oznacza, że faktura dotarła do KSeF później niż
+w dniu, którym jest datowana.
 
 ### `ksef pull NUMER_KSEF [PLIK]`
 
@@ -185,7 +189,8 @@ do podanego pliku.
 Wypisuje wersję programu.
 
 Każde polecenie kończy się kodem 0 przy powodzeniu, 1 przy błędzie i 2 przy
-nieznanym poleceniu.
+nieznanym poleceniu. Komunikaty są kolorowane tylko w terminalu. Kolory
+wyłącza zmienna `NO_COLOR`.
 
 ## Czego narzędzie nie robi
 

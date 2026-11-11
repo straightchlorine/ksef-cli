@@ -16,8 +16,18 @@ func TestListInvoices(t *testing.T) {
 	}
 	// both pages of the first quarter, in order
 	if len(got) != 2 || got[0].KsefNumber != "KSEF-NUMBER-0" || got[1].KsefNumber != "KSEF-NUMBER-1" ||
-		got[1].GrossAmount.String() != "100.5" || got[1].Buyer.Name != "Buyer" {
+		got[1].GrossAmount.String() != "100.5" || got[1].Buyer.Name != "Buyer" ||
+		got[1].InvoicingMode != "Offline" {
 		t.Errorf("got %+v", got)
+	}
+}
+
+// Colours are for terminals only: a pipe or a file gets plain text.
+func TestPaintPlainOffTerminal(t *testing.T) {
+	_, w, _ := os.Pipe()
+	defer w.Close()
+	if got := paint(w, green, "[  OK  ]"); got != "[  OK  ]" {
+		t.Errorf("got %q", got)
 	}
 }
 

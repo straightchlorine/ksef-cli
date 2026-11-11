@@ -86,7 +86,8 @@ func authenticate(cfg *Config) (string, error) {
 	}
 	if op.Status.Code != 200 {
 		return "", fmt.Errorf(
-			"login rejected: %d %s %v", op.Status.Code, op.Status.Description, op.Status.Details,
+			"login rejected: %d %s %v - check that the token was created for env=%s",
+			op.Status.Code, op.Status.Description, op.Status.Details, cfg.Env,
 		)
 	}
 

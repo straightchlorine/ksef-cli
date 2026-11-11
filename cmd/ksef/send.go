@@ -129,7 +129,7 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 	}
 	// The invoice is in; a failed close only delays the session's own UPO.
 	if _, err := apiCall("POST", online+"/close", access, nil); err != nil {
-		fmt.Fprintf(os.Stderr, "[ WARN ] closing the session: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s closing the session: %v\n", paint(os.Stderr, yellow, "[ WARN ]"), err)
 	}
 
 	var inv struct {
@@ -168,7 +168,8 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 		err = os.WriteFile(upoPath, upo, 0o644)
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ WARN ] accepted, but the UPO was not saved: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s accepted, but the UPO was not saved: %v\n",
+			paint(os.Stderr, yellow, "[ WARN ]"), err)
 	} else {
 		res.UPOPath = upoPath
 	}
@@ -188,7 +189,7 @@ func cmdSend(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("[  OK  ] accepted, KSeF number %s\n", res.KsefNumber)
+	fmt.Printf("%s accepted, KSeF number %s\n", paint(os.Stdout, green, "[  OK  ]"), res.KsefNumber)
 	if res.UPOPath != "" {
 		fmt.Printf("  UPO:    %s\n", res.UPOPath)
 	}

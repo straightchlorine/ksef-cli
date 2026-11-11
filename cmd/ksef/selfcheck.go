@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"fmt"
+	"os"
 )
 
 // cmdSelfcheck proves the crypto envelope works on this machine: AES and
@@ -18,6 +19,7 @@ func cmdSelfcheck() error {
 		return err
 	}
 	msg := []byte("ksef crypto self-check")
+	ok := paint(os.Stdout, green, "[  OK  ]")
 
 	key, iv, ct, err := aesEncrypt(msg)
 	if err != nil {
@@ -30,7 +32,7 @@ func cmdSelfcheck() error {
 	if !bytes.Equal(msg, pt) {
 		return fmt.Errorf("AES round-trip mismatch")
 	}
-	fmt.Println("[  OK  ] AES-256-CBC round-trip")
+	fmt.Println(ok, "AES-256-CBC round-trip")
 
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -47,25 +49,26 @@ func cmdSelfcheck() error {
 	if !bytes.Equal(msg, dec) {
 		return fmt.Errorf("RSA-OAEP round-trip mismatch")
 	}
-	fmt.Println("[  OK  ] RSA-OAEP-SHA256 round-trip")
+	fmt.Println(ok, "RSA-OAEP-SHA256 round-trip")
 
 	pub, _, err := publicKeyFor(cfg, "SymmetricKeyEncryption")
 	if err != nil {
-		fmt.Printf("[ WARN ] could not fetch KSeF's public key (env=%s): %v\n", cfg.Env, err)
+		fmt.Printf("%s could not fetch KSeF's public key (env=%s): %v\n",
+			paint(os.Stdout, yellow, "[ WARN ]"), cfg.Env, err)
 		return nil
 	}
 	if _, err := rsaOAEPEncrypt(pub, msg); err != nil {
 		return fmt.Errorf("RSA-OAEP against KSeF's key: %w", err)
 	}
-	fmt.Printf("[  OK  ] RSA-OAEP against KSeF's live published public key (env=%s)\n", cfg.Env)
+	fmt.Printf("%s RSA-OAEP against KSeF's live published public key (env=%s)\n", ok, cfg.Env)
 
 	if cfg.Token == "" {
-		fmt.Println("[ SKIP ] KSeF login - no token configured")
+		fmt.Println(paint(os.Stdout, cyan, "[ SKIP ]"), "KSeF login - no token configured")
 		return nil
 	}
 	if _, err := authenticate(cfg); err != nil {
 		return fmt.Errorf("KSeF login: %w", err)
 	}
-	fmt.Printf("[  OK  ] KSeF login (env=%s, nip=%s)\n", cfg.Env, cfg.NIP)
+	fmt.Printf("%s KSeF login (env=%s, nip=%s)\n", ok, cfg.Env, cfg.NIP)
 	return nil
 }

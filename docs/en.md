@@ -16,7 +16,7 @@ encrypts the invoice, submits it and waits until KSeF accepts it.
 At the end it saves the UPO receipt next to the invoice and prints the KSeF
 number together with a public verification link.
 
-The tool does not create invoices!
+The tool does not create invoices from scratch!
 
 ## Features
 

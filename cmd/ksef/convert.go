@@ -138,7 +138,7 @@ type fa3Data struct {
 type convertOpts struct {
 	SaleDate, Rate, RateDate, BuyerCountry, BuyerID, Unit, Exemption string
 	Paid                                                             bool
-	PaidDate                                                         string
+	PaidDate, DueDate                                                string
 }
 
 var (
@@ -347,6 +347,9 @@ func convertInvoify(in []byte, o convertOpts, now time.Time) ([]byte, error) {
 	if data.Issued, err = polishDate(d.InvoiceDate); err != nil {
 		return nil, fmt.Errorf("invoice date: %w", err)
 	}
+	if o.DueDate != "" {
+		d.DueDate = o.DueDate
+	}
 	if d.DueDate != "" {
 		if data.DueDate, err = polishDate(d.DueDate); err != nil {
 			return nil, fmt.Errorf("due date: %w", err)
@@ -445,6 +448,7 @@ func cmdConvert(args []string) error {
 	fs.StringVar(&o.Exemption, "exemption", "", "")
 	fs.BoolVar(&o.Paid, "paid", false, "")
 	fs.StringVar(&o.PaidDate, "paid-date", "", "")
+	fs.StringVar(&o.DueDate, "due-date", "", "")
 	cfg, err := loadConfig()
 	if err != nil {
 		return err

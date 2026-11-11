@@ -181,7 +181,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 			resp["invoices"] = []map[string]any{{
 				"ksefNumber": "KSEF-NUMBER-" + page, "invoiceNumber": "FV/" + page,
 				"issueDate": "2025-01-1" + page, "grossAmount": 100.50, "currency": "PLN",
-				"buyer": map[string]string{"name": "Buyer"},
+				"buyer": map[string]string{"name": "Buyer"}, "invoicingMode": "Offline",
 			}}
 		}
 		reply(w, 200, resp)
@@ -215,7 +215,8 @@ func TestAuthenticate(t *testing.T) {
 
 func TestAuthenticateRejected(t *testing.T) {
 	_, err := authenticate(fakeKSeF(t, 450, 200))
-	if err == nil || !strings.Contains(err.Error(), "450") {
+	if err == nil || !strings.Contains(err.Error(), "450") ||
+		!strings.Contains(err.Error(), "env=fake") {
 		t.Errorf("want a login-rejected error carrying the status code, got %v", err)
 	}
 }

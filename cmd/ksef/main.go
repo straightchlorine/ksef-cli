@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 )
 
 // Overridden at release via -ldflags "-X main.version=...".
@@ -37,6 +38,7 @@ Subcommands:
                                       day of the month before it
                 --paid                mark as paid today
                 --paid-date DATE      mark as paid on DATE
+                --due-date DATE       payment due date, instead of the invoice's
                 --rate N              exchange rate, instead of NBP's
                 --rate-date DATE      NBP's rate for that day, or the last before
                 --buyer-country XX    when the country is not recognised
@@ -48,7 +50,8 @@ Subcommands:
               Saves the UPO receipt next to it as FILE.upo.xml and prints the
               KSeF number and a public verification link.
   list        List the invoices KSeF holds with you as the seller, issued in
-              YEAR (default: this year).
+              YEAR (default: this year), with the mode KSeF recorded: Offline
+              when an invoice arrived after the day it is dated.
   pull        Fetch an invoice as KSeF stored it, to stdout or OUT_FILE.
   version     Print version.
 
@@ -63,6 +66,21 @@ default ~/.config/ksef.conf - same paths on every OS):
   convert_options
               options that convert always starts with
 `
+
+const red, green, yellow, cyan = "31", "32", "33", "36"
+
+// paint colours s when w is a terminal that takes ANSI codes.
+// NO_COLOR and TERM=dumb switch it off.
+func paint(w *os.File, colour, s string) string {
+	st, err := w.Stat()
+	if err != nil || st.Mode()&os.ModeCharDevice == 0 ||
+		os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" ||
+		// the old Windows console prints the codes instead of colours
+		runtime.GOOS == "windows" && os.Getenv("WT_SESSION") == "" {
+		return s
+	}
+	return "\x1b[" + colour + "m" + s + "\x1b[0m"
+}
 
 func main() {
 	if len(os.Args) < 2 || os.Args[1] == "-h" || os.Args[1] == "--help" {
@@ -91,7 +109,7 @@ func main() {
 		os.Exit(2)
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
+		fmt.Fprintln(os.Stderr, paint(os.Stderr, red, "Error:"), err)
 		os.Exit(1)
 	}
 }

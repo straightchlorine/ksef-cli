@@ -181,6 +181,8 @@ func TestConvertSaleAndPaidDates(t *testing.T) {
 			invoifyJSON(nil), convertOpts{SaleDate: "prev-month-end"}, "<P_6>2026-02-28</P_6>"},
 		"paid today": {
 			due("2026-03-01"), convertOpts{Paid: true}, "<DataZaplaty>2026-03-02<"},
+		"due date as an option": {
+			due("2026-03-15"), convertOpts{DueDate: "2026-03-20"}, "<Termin>2026-03-20</Termin>"},
 		"paid on a date": {
 			due("2026-03-15"), convertOpts{PaidDate: "2026-03-05"},
 			"<Zaplacono>1</Zaplacono>\n      <DataZaplaty>2026-03-05<"},

@@ -17,6 +17,7 @@ type invoiceMeta struct {
 	IssueDate     string      `json:"issueDate"`
 	GrossAmount   json.Number `json:"grossAmount"`
 	Currency      string      `json:"currency"`
+	InvoicingMode string      `json:"invoicingMode"` // Online | Offline
 	Buyer         struct {
 		Name string `json:"name"`
 	} `json:"buyer"`
@@ -60,7 +61,8 @@ func listInvoices(cfg *Config, year int, now time.Time) ([]invoiceMeta, error) {
 				// TODO: narrow the date range and continue, as the API docs say
 				fmt.Fprintln(
 					os.Stderr,
-					"[ WARN ] over 10000 invoices in one quarter, list is cut short",
+					paint(os.Stderr, yellow, "[ WARN ]"),
+					"over 10000 invoices in one quarter, list is cut short",
 				)
 				break
 			}
@@ -96,8 +98,8 @@ func cmdList(args []string) error {
 	fmt.Printf("Invoices issued by %s in %d (env=%s): %d\n", cfg.NIP, year, cfg.Env, len(invoices))
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	for _, inv := range invoices {
-		fmt.Fprintf(w, "%s\t%s\t%s %s\t%s\t%s\n", inv.IssueDate, inv.InvoiceNumber,
-			inv.GrossAmount, inv.Currency, inv.Buyer.Name, inv.KsefNumber)
+		fmt.Fprintf(w, "%s\t%s\t%s %s\t%s\t%s\t%s\n", inv.IssueDate, inv.InvoiceNumber,
+			inv.GrossAmount, inv.Currency, inv.Buyer.Name, inv.InvoicingMode, inv.KsefNumber)
 	}
 	return w.Flush()
 }
