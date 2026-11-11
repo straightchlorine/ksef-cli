@@ -8,6 +8,8 @@ Submitting invoices to KSeF from the command line.
 
 </div>
 
+<br>
+
 You provide a ready FA(3) invoice XML file. `ksef` then logs in with a token,
 encrypts the invoice, submits it and waits until KSeF accepts it.
 

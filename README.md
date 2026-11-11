@@ -5,8 +5,10 @@
 [Dokumentacja](docs/index.md) &middot; [English](docs/en.md) &middot; [Codeberg](https://codeberg.org/piotrkrzysztof/ksef-cli)
 
 Wysyłanie faktur do KSeF z wiersza poleceń.
-<br/>
+
 </div>
+
+<br>
 
 Należy podać gotowy plik XML faktury FA(3). `ksef` następnie loguje się tokenem,
 szyfruje fakturę, wysyła ją i czeka, aż KSeF ją przyjmie.
