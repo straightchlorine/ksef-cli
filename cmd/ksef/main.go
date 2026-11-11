@@ -11,11 +11,15 @@ import (
 // Overridden at release via -ldflags "-X main.version=...".
 var version = "dev"
 
-const usage = `Usage: ksef selfcheck
+const usage = `Usage: ksef init [test|demo|prod]
+       ksef selfcheck
        ksef version
        ksef -h
 
 Subcommands:
+  init        Write a starter config, never overwriting an existing one.
+              Environment defaults to test; nip is filled in from
+              $KSEF_TOKEN when the token carries it.
   selfcheck   Checks the setup: AES/RSA crypto round-trip, KSeF's live
               published public key and, when a token is configured, a login.
   version     Print version.
@@ -37,6 +41,8 @@ func main() {
 
 	var err error
 	switch cmd := os.Args[1]; cmd {
+	case "init":
+		err = cmdInit(os.Args[2:])
 	case "selfcheck":
 		err = cmdSelfcheck()
 	case "version":

@@ -31,6 +31,14 @@ func xdgPath(envVar, fallback, suffix string) string {
 	return filepath.Join(dir, suffix)
 }
 
+// configPath returns $KSEF_CONFIG if set (explicit), else the default location.
+func configPath() (path string, explicit bool) {
+	if p := os.Getenv("KSEF_CONFIG"); p != "" {
+		return p, true
+	}
+	return xdgPath("XDG_CONFIG_HOME", ".config", "ksef.conf"), false
+}
+
 // loadConfig reads $KSEF_CONFIG if set (it must exist - the user asked for that exact file),
 // else $XDG_CONFIG_HOME/ksef.conf (default ~/.config/ksef.conf).
 // At the default path only a missing file is fine; an existing-but-unreadable
@@ -38,11 +46,7 @@ func xdgPath(envVar, fallback, suffix string) string {
 func loadConfig() (*Config, error) {
 	cfg := &Config{Env: "test"}
 
-	path := os.Getenv("KSEF_CONFIG")
-	explicit := path != ""
-	if !explicit {
-		path = xdgPath("XDG_CONFIG_HOME", ".config", "ksef.conf")
-	}
+	path, explicit := configPath()
 	if path != "" {
 		f, err := os.Open(path)
 		switch {
