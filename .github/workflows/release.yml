@@ -1,0 +1,66 @@
+name: Release
+
+# Releases are built on Codeberg (Woodpecker + goreleaser). This copies the
+# finished release here, so both sides carry the same files and checksums.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to copy from Codeberg, e.g. v0.5.0
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+
+jobs:
+  copy:
+    name: Copy the Codeberg release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      SOURCE: https://codeberg.org/api/v1/repos/piotrkrzysztof/ksef-cli
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      # the release is complete once every file named in checksums.txt is attached
+      - name: Wait for the Codeberg release
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::bad tag: $TAG"; exit 1; }
+          for _ in $(seq 60); do
+            if curl -fs "$SOURCE/releases/tags/$TAG" -o release.json &&
+              sums=$(jq -r '.assets[] | select(.name == "checksums.txt") | .browser_download_url' release.json) &&
+              [ -n "$sums" ] && curl -fsSL "$sums" -o checksums.txt &&
+              missing=$(awk '{print $2}' checksums.txt | grep -vxF -f <(jq -r '.assets[].name' release.json) || true) &&
+              [ -z "$missing" ]; then
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::no complete Codeberg release for $TAG after 20 minutes"
+          exit 1
+
+      - name: Download and verify
+        run: |
+          mkdir dist
+          jq -r '.assets[] | "\(.browser_download_url)\t\(.name)"' release.json |
+            while IFS=$'\t' read -r url name; do
+              curl -fsSL "$url" -o "dist/${name##*/}"
+            done
+          cd dist && sha256sum -c checksums.txt
+
+      - name: Publish
+        run: |
+          jq -r '.body // "" | gsub("^\\s+|\\s+$"; "")' release.json > notes.md
+          printf '\nCopied from %s\n' "$(jq -r .html_url release.json)" >> notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$TAG" --notes-file notes.md --verify-tag
+          fi
