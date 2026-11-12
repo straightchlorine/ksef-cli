@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -248,7 +249,8 @@ func nbpRate(currency, date string) (string, error) {
 	r := resp.Rates[len(resp.Rates)-1]
 	fmt.Fprintf(
 		os.Stderr,
-		"NBP %s rate %s (table %s, %s)\n",
+		"%s NBP %s rate %s (table %s, %s)\n",
+		paint(os.Stderr, cyan, "[ INFO ]"),
 		currency,
 		r.Mid,
 		r.No,
@@ -257,15 +259,59 @@ func nbpRate(currency, date string) (string, error) {
 	return r.Mid.String(), nil
 }
 
-// convertInvoify turns an Invoify JSON or XML export into an FA(3) invoice of
-// a VAT-exempt seller. Rated invoices, discounts and shipping are refused.
-func convertInvoify(in []byte, o convertOpts, now time.Time) ([]byte, error) {
+// The custom fields convert reads, by party.
+var (
+	vatKeys      = []string{"NrVatUE", "VAT UE", "VAT-UE", "VAT ID", "VAT"}
+	senderKeys   = []string{"NIP", "REGON"}
+	receiverKeys = append([]string{"NIP", "NrID", "KodKraju"}, vatKeys...)
+)
+
+func decodeInvoify(in []byte) (invoify, error) {
 	var inv invoify
 	decode := json.Unmarshal
 	if bytes.HasPrefix(bytes.TrimSpace(in), []byte("<")) {
 		decode = xml.Unmarshal
 	}
-	if err := decode(in, &inv); err != nil {
+	return inv, decode(in, &inv)
+}
+
+// convertNotes says what the result leaves out: optional values that were not
+// set, and custom fields of the source invoice that convert does not read.
+func convertNotes(in, out []byte) [][2]string {
+	var unset, ignored []string
+	if head, err := parseInvoiceHead(out); err == nil {
+		if head.SaleDate == "" && head.SaleFrom == "" {
+			unset = append(unset, "sale date (--sale-date)")
+		}
+		if head.PaidDate == "" {
+			unset = append(unset, "paid (--paid)")
+		}
+	}
+	if inv, err := decodeInvoify(in); err == nil {
+		unread := func(p invoifyParty, known []string, who string) {
+			for _, c := range p.CustomInputs {
+				key := strings.TrimSpace(c.Key)
+				if !slices.ContainsFunc(known, func(k string) bool {
+					return strings.EqualFold(k, key)
+				}) {
+					ignored = append(ignored, key+" ("+who+")")
+				}
+			}
+		}
+		unread(inv.Sender, senderKeys, "sender")
+		unread(inv.Receiver, receiverKeys, "receiver")
+	}
+	return [][2]string{
+		{"not set", strings.Join(unset, ", ")},
+		{"ignored", strings.Join(ignored, ", ")},
+	}
+}
+
+// convertInvoify turns an Invoify JSON or XML export into an FA(3) invoice of
+// a VAT-exempt seller. Rated invoices, discounts and shipping are refused.
+func convertInvoify(in []byte, o convertOpts, now time.Time) ([]byte, error) {
+	inv, err := decodeInvoify(in)
+	if err != nil {
 		return nil, err
 	}
 	d := inv.Details
@@ -311,7 +357,7 @@ func convertInvoify(in []byte, o convertOpts, now time.Time) ([]byte, error) {
 	}
 	nip := nonDigits.ReplaceAllString(recv.custom("NIP"), "")
 	vat := strings.ToUpper(strings.ReplaceAll(
-		recv.custom("NrVatUE", "VAT UE", "VAT-UE", "VAT ID", "VAT"), " ", "",
+		recv.custom(vatKeys...), " ", "",
 	))
 	if vat != "" && !isVatUE.MatchString(vat) {
 		return nil, fmt.Errorf("receiver VAT number %q is not a country prefix and a number", vat)
@@ -343,7 +389,6 @@ func convertInvoify(in []byte, o convertOpts, now time.Time) ([]byte, error) {
 	}
 	data.Buyer.Country = buyerCountry
 
-	var err error
 	if data.Issued, err = polishDate(d.InvoiceDate); err != nil {
 		return nil, fmt.Errorf("invoice date: %w", err)
 	}
@@ -474,9 +519,20 @@ func cmdConvert(args []string) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", files[0], err)
 	}
+	notes := convertNotes(in, out)
 	if len(files) == 2 {
-		return os.WriteFile(files[1], out, 0o644)
+		if err := os.WriteFile(files[1], out, 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("%s wrote %s\n", paint(os.Stdout, green, "[  OK  ]"), files[1])
+		if head, err := parseInvoiceHead(out); err == nil {
+			printSummary(os.Stdout, head)
+		}
+		for _, n := range notes {
+			field(os.Stdout, n[0], n[1])
+		}
+		fmt.Println(paint(os.Stdout, dim, "Review it, then: ksef send "+files[1]))
+		return nil
 	}
-	_, err = os.Stdout.Write(out)
-	return err
+	return showInvoice(out, "converted "+files[0], notes)
 }

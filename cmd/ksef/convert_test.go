@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -196,6 +197,24 @@ func TestConvertSaleAndPaidDates(t *testing.T) {
 	}
 }
 
+// The notes name optional values left out and custom fields convert skipped.
+func TestConvertNotes(t *testing.T) {
+	in := invoifyJSON(func(s string) string {
+		return strings.Replace(s, `{"key": "nip", "value": "9999999999"}`,
+			`{"key": "nip", "value": "9999999999"}, {"key": "Steuernummer", "value": "1"}`, 1)
+	})
+	out, err := convertInvoify(in, convertOpts{Paid: true}, testNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := convertNotes(in, out)
+	want := [][2]string{
+		{"not set", "sale date (--sale-date)"}, {"ignored", "Steuernummer (receiver)"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 func TestConvertRefuses(t *testing.T) {
 	replace := func(old, new string) func(string) string {
 		return func(s string) string { return strings.Replace(s, old, new, 1) }
@@ -205,7 +224,8 @@ func TestConvertRefuses(t *testing.T) {
 		edit func(string) string
 		opts convertOpts
 	}{
-		"tax":             {replace(`"taxDetails": {"amount": 0}`, `"taxDetails": {"amount": 9}`), noOpts},
+		"tax": {
+			replace(`"taxDetails": {"amount": 0}`, `"taxDetails": {"amount": 9}`), noOpts},
 		"total mismatch":  {replace(`"totalAmount": 250`, `"totalAmount": 300`), convertOpts{}},
 		"no seller NIP":   {replace(`"123-456-78-90"`, `""`), convertOpts{}},
 		"rate for PLN":    {nil, convertOpts{Rate: "4.2"}},

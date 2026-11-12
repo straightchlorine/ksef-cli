@@ -22,15 +22,6 @@ func TestListInvoices(t *testing.T) {
 	}
 }
 
-// Colours are for terminals only: a pipe or a file gets plain text.
-func TestPaintPlainOffTerminal(t *testing.T) {
-	_, w, _ := os.Pipe()
-	defer w.Close()
-	if got := paint(w, green, "[  OK  ]"); got != "[  OK  ]" {
-		t.Errorf("got %q", got)
-	}
-}
-
 func TestPull(t *testing.T) {
 	cfg := fakeKSeF(t, 200, 200)
 	conf := writeInvoice(t, "env=fake\nnip="+cfg.NIP+"\ncache_dir="+cfg.CacheDir+"\n")

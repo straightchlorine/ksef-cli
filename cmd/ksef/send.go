@@ -17,15 +17,41 @@ var qrURLs = map[string]string{
 	"prod": "https://qr.ksef.mf.gov.pl",
 }
 
-// invoiceHead is the little that send needs to read from an FA invoice.
+type invoiceLine struct {
+	Name     string `xml:"P_7"`
+	Unit     string `xml:"P_8A"`
+	Quantity string `xml:"P_8B"`
+	NetPrice string `xml:"P_9A"`
+	Price    string `xml:"P_9B"`
+	Rate     string `xml:"KursWaluty"`
+}
+
+// invoiceHead is what the tool reads from an FA invoice.
 type invoiceHead struct {
 	Form struct {
 		SystemCode    string `xml:"kodSystemowy,attr"`
 		SchemaVersion string `xml:"wersjaSchemy,attr"`
 		Value         string `xml:",chardata"`
 	} `xml:"Naglowek>KodFormularza"`
-	SellerNIP string `xml:"Podmiot1>DaneIdentyfikacyjne>NIP"`
-	IssueDate string `xml:"Fa>P_1"`
+	SellerNIP  string `xml:"Podmiot1>DaneIdentyfikacyjne>NIP"`
+	SellerName string `xml:"Podmiot1>DaneIdentyfikacyjne>Nazwa"`
+	Buyer      struct {
+		NIP     string `xml:"NIP"`
+		KodUE   string `xml:"KodUE"`
+		NrVatUE string `xml:"NrVatUE"`
+		NrID    string `xml:"NrID"`
+		Name    string `xml:"Nazwa"`
+	} `xml:"Podmiot2>DaneIdentyfikacyjne"`
+	IssueDate string        `xml:"Fa>P_1"`
+	Number    string        `xml:"Fa>P_2"`
+	SaleDate  string        `xml:"Fa>P_6"`
+	SaleFrom  string        `xml:"Fa>OkresFa>P_6_Od"`
+	SaleTo    string        `xml:"Fa>OkresFa>P_6_Do"`
+	Total     string        `xml:"Fa>P_15"`
+	Currency  string        `xml:"Fa>KodWaluty"`
+	Lines     []invoiceLine `xml:"Fa>FaWiersz"`
+	DueDate   string        `xml:"Fa>Platnosc>TerminPlatnosci>Termin"`
+	PaidDate  string        `xml:"Fa>Platnosc>DataZaplaty"`
 }
 
 func parseInvoiceHead(invoice []byte) (*invoiceHead, error) {
@@ -53,6 +79,7 @@ func verificationURL(env string, h *invoiceHead, invoice []byte) (string, error)
 
 type sent struct {
 	KsefNumber string
+	Head       *invoiceHead
 	UPOPath    string // empty when the receipt could not be saved
 	VerifyURL  string
 }
@@ -162,7 +189,7 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 			inv.Status.Description, inv.Status.Details, extra)
 	}
 
-	res := &sent{KsefNumber: inv.KsefNumber, VerifyURL: verifyURL}
+	res := &sent{KsefNumber: inv.KsefNumber, Head: head, VerifyURL: verifyURL}
 	upo, err := apiCall("GET", invoiceURL+"/upo", access, nil)
 	if err == nil {
 		err = os.WriteFile(upoPath, upo, 0o644)
@@ -184,15 +211,15 @@ func cmdSend(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Sending %s to KSeF (env=%s)...\n", args[0], cfg.Env)
+	fmt.Printf("Sending %s to KSeF (%s)...\n", args[0], envTag(os.Stdout, cfg.Env))
 	res, err := sendInvoice(cfg, args[0])
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s accepted, KSeF number %s\n", paint(os.Stdout, green, "[  OK  ]"), res.KsefNumber)
-	if res.UPOPath != "" {
-		fmt.Printf("  UPO:    %s\n", res.UPOPath)
-	}
-	fmt.Printf("  verify: %s\n", res.VerifyURL)
+	fmt.Printf("%s accepted, KSeF number %s\n", paint(os.Stdout, green, "[  OK  ]"),
+		paint(os.Stdout, bold, res.KsefNumber))
+	printSummary(os.Stdout, res.Head)
+	field(os.Stdout, "UPO", res.UPOPath)
+	field(os.Stdout, "verify", res.VerifyURL)
 	return nil
 }

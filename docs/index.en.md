@@ -146,6 +146,11 @@ parameters take precedence:
 convert_options=--sale-date prev-month-end --paid
 ```
 
+After converting, `convert` shows a summary of the invoice: number, dates,
+parties, items, total with the rate, and payment. The `not set` line names
+optional values that were left out, and `ignored` names Invoify custom fields
+that `convert` does not read.
+
 Review the resulting XML before submitting it. The issuer is responsible
 for the content of the invoice.
 
@@ -156,8 +161,13 @@ Submits one invoice and waits up to about a minute until KSeF accepts it.
 ```
 Sending invoice.xml to KSeF (env=test)...
 [  OK  ] accepted, KSeF number 1234567890-20260201-0123456789AB-CD
-  UPO:    invoice.upo.xml
-  verify: https://qr-test.ksef.mf.gov.pl/invoice/1234567890/01-02-2026/...
+  invoice: FV/2026/02/1, issued 2026-02-01, sale 2026-01-31
+  seller:  Jan Kowalski, NIP 1234567890
+  buyer:   Beispiel GmbH, VAT DE123456789
+  total:   1200.00 EUR at 4.2137
+  payment: due 2026-02-15
+  UPO:     invoice.upo.xml
+  verify:  https://qr-test.ksef.mf.gov.pl/invoice/1234567890/01-02-2026/...
 ```
 
 - A file that is not an FA invoice is refused before connecting to KSeF.
@@ -176,13 +186,22 @@ Shows the invoices issued in the given year with you as the seller, oldest
 first: date, invoice number, gross amount, buyer, mode, KSeF number. Without
 an argument it takes the current year.
 
+```
+Invoices issued by 1234567890 in 2026 (env=test): 2
+DATE        NUMBER              GROSS  BUYER          MODE     KSEF NUMBER
+2026-01-02  FV/2026/01/1  1200.00 EUR  Beispiel GmbH  Online   1234567890-20260102-0123456789AB-CD
+2026-02-01  FV/2026/02/1  1200.00 EUR  Beispiel GmbH  Offline  1234567890-20260203-0123456789AB-EF
+```
+
 The mode is assigned by KSeF. `Offline` means the invoice reached KSeF later
 than the day it is dated.
 
 ### `ksef pull KSEF_NUMBER [FILE]`
 
 Downloads an invoice as stored in KSeF. It prints it to standard output or
-saves it to the given file.
+saves it to the given file. In a terminal it colours the XML syntax and shows a
+summary of the invoice below. Redirected output is always the XML alone,
+unchanged.
 
 ### `ksef version`
 

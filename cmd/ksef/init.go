@@ -68,7 +68,8 @@ func cmdInit(args []string) error {
 		return err
 	}
 
-	fmt.Printf("Wrote %s (env=%s)\n", path, env)
+	fmt.Printf("%s wrote %s (%s)\n", paint(os.Stdout, green, "[  OK  ]"), path,
+		envTag(os.Stdout, env))
 	if nip == "" {
 		fmt.Println("  - set nip= in it")
 	}

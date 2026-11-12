@@ -6,7 +6,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime"
 )
 
 // Overridden at release via -ldflags "-X main.version=...".
@@ -67,24 +66,9 @@ default ~/.config/ksef.conf - same paths on every OS):
               options that convert always starts with
 `
 
-const red, green, yellow, cyan = "31", "32", "33", "36"
-
-// paint colours s when w is a terminal that takes ANSI codes.
-// NO_COLOR and TERM=dumb switch it off.
-func paint(w *os.File, colour, s string) string {
-	st, err := w.Stat()
-	if err != nil || st.Mode()&os.ModeCharDevice == 0 ||
-		os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" ||
-		// the old Windows console prints the codes instead of colours
-		runtime.GOOS == "windows" && os.Getenv("WT_SESSION") == "" {
-		return s
-	}
-	return "\x1b[" + colour + "m" + s + "\x1b[0m"
-}
-
 func main() {
 	if len(os.Args) < 2 || os.Args[1] == "-h" || os.Args[1] == "--help" {
-		fmt.Print(usage)
+		printUsage(os.Stdout)
 		return
 	}
 
@@ -105,7 +89,8 @@ func main() {
 	case "version":
 		fmt.Println(version)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown subcommand: %s\n\n%s", cmd, usage)
+		fmt.Fprintf(os.Stderr, "%s unknown subcommand %q - run ksef -h for the list\n",
+			paint(os.Stderr, red, "Error:"), cmd)
 		os.Exit(2)
 	}
 	if err != nil {

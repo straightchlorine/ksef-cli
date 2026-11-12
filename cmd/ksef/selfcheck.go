@@ -53,14 +53,15 @@ func cmdSelfcheck() error {
 
 	pub, _, err := publicKeyFor(cfg, "SymmetricKeyEncryption")
 	if err != nil {
-		fmt.Printf("%s could not fetch KSeF's public key (env=%s): %v\n",
-			paint(os.Stdout, yellow, "[ WARN ]"), cfg.Env, err)
+		fmt.Printf("%s could not fetch KSeF's public key (%s): %v\n",
+			paint(os.Stdout, yellow, "[ WARN ]"), envTag(os.Stdout, cfg.Env), err)
 		return nil
 	}
 	if _, err := rsaOAEPEncrypt(pub, msg); err != nil {
 		return fmt.Errorf("RSA-OAEP against KSeF's key: %w", err)
 	}
-	fmt.Printf("%s RSA-OAEP against KSeF's live published public key (env=%s)\n", ok, cfg.Env)
+	fmt.Printf("%s RSA-OAEP against KSeF's live published public key (%s)\n",
+		ok, envTag(os.Stdout, cfg.Env))
 
 	if cfg.Token == "" {
 		fmt.Println(paint(os.Stdout, cyan, "[ SKIP ]"), "KSeF login - no token configured")
@@ -69,6 +70,6 @@ func cmdSelfcheck() error {
 	if _, err := authenticate(cfg); err != nil {
 		return fmt.Errorf("KSeF login: %w", err)
 	}
-	fmt.Printf("%s KSeF login (env=%s, nip=%s)\n", ok, cfg.Env, cfg.NIP)
+	fmt.Printf("%s KSeF login (%s, nip=%s)\n", ok, envTag(os.Stdout, cfg.Env), cfg.NIP)
 	return nil
 }

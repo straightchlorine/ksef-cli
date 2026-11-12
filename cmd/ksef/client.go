@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -166,9 +168,41 @@ func apiCall(method, url, bearer string, in any) ([]byte, error) {
 		return nil, fmt.Errorf("%s %s: %w", method, url, err)
 	}
 	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("%s %s: %s: %s", method, url, resp.Status, body)
+		return nil, fmt.Errorf("%s %s%s: %s: %s", method, req.URL.Host, req.URL.Path,
+			resp.Status, apiError(body))
 	}
 	return body, nil
+}
+
+// apiError picks the message out of a KSeF error body, or returns the body as is.
+func apiError(body []byte) string {
+	var e struct {
+		Exception struct {
+			List []struct {
+				Code    int      `json:"exceptionCode"`
+				Text    string   `json:"exceptionDescription"`
+				Details []string `json:"details"`
+			} `json:"exceptionDetailList"`
+		} `json:"exception"`
+		Status json.RawMessage `json:"status"`
+		Title  string          `json:"title"`
+		Detail string          `json:"detail"`
+	}
+	_ = json.Unmarshal(body, &e)
+	var parts []string
+	for _, x := range e.Exception.List {
+		parts = append(parts, joined(" ", strconv.Itoa(x.Code), x.Text, strings.Join(x.Details, " ")))
+	}
+	// an object for rate limits; a bare number in problem details
+	var st statusInfo
+	if json.Unmarshal(e.Status, &st) == nil {
+		parts = append(parts, strings.Join(st.Details, " "))
+	}
+	parts = append(parts, joined(": ", e.Title, e.Detail))
+	if msg := joined("; ", parts...); msg != "" {
+		return msg
+	}
+	return strings.TrimSpace(string(body))
 }
 
 // apiJSON is apiCall with the response decoded into out.

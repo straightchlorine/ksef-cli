@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"text/tabwriter"
 	"time"
 )
 
@@ -95,13 +94,42 @@ func cmdList(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Invoices issued by %s in %d (env=%s): %d\n", cfg.NIP, year, cfg.Env, len(invoices))
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	for _, inv := range invoices {
-		fmt.Fprintf(w, "%s\t%s\t%s %s\t%s\t%s\t%s\n", inv.IssueDate, inv.InvoiceNumber,
-			inv.GrossAmount, inv.Currency, inv.Buyer.Name, inv.InvoicingMode, inv.KsefNumber)
+	fmt.Printf("Invoices issued by %s in %d (%s): %d\n", cfg.NIP, year,
+		envTag(os.Stdout, cfg.Env), len(invoices))
+	if len(invoices) > 0 {
+		printList(os.Stdout, invoices)
 	}
-	return w.Flush()
+	return nil
+}
+
+// printList prints the invoices as a table, with late arrivals standing out.
+func printList(w *os.File, invoices []invoiceMeta) {
+	rows := [][]string{{"DATE", "NUMBER", "GROSS", "BUYER", "MODE", "KSEF NUMBER"}}
+	for _, inv := range invoices {
+		gross := inv.GrossAmount.String()
+		if f, err := inv.GrossAmount.Float64(); err == nil {
+			gross = strconv.FormatFloat(f, 'f', 2, 64)
+		}
+		buyer := []rune(inv.Buyer.Name)
+		if len(buyer) > 32 {
+			buyer = append(buyer[:31], '…')
+		}
+		rows = append(rows, []string{inv.IssueDate, inv.InvoiceNumber,
+			gross + " " + inv.Currency, string(buyer), inv.InvoicingMode, inv.KsefNumber})
+	}
+	printTable(w, rows, 2, func(row, col int) string {
+		switch {
+		case row == 0:
+			return bold
+		case col == 4 && rows[row][col] == "Offline":
+			return yellow
+		case col == 4:
+			return green
+		case col == 5:
+			return dim
+		}
+		return ""
+	})
 }
 
 // cmdPull fetches an invoice as KSeF stored it, to stdout or to a file.
@@ -123,8 +151,15 @@ func cmdPull(args []string) error {
 		return err
 	}
 	if len(args) == 2 {
-		return os.WriteFile(args[1], invoice, 0o644)
+		if err := os.WriteFile(args[1], invoice, 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("%s saved %s (%s)\n", paint(os.Stdout, green, "[  OK  ]"), args[1],
+			envTag(os.Stdout, cfg.Env))
+		if head, err := parseInvoiceHead(invoice); err == nil {
+			printSummary(os.Stdout, head)
+		}
+		return nil
 	}
-	_, err = os.Stdout.Write(invoice)
-	return err
+	return showInvoice(invoice, args[0]+" ("+envTag(os.Stderr, cfg.Env)+")", nil)
 }
