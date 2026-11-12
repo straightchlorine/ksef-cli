@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[Polski](../README.md) &middot; [Documentation](index.en.md) &middot; [Codeberg](https://codeberg.org/piotrkrzysztof/ksef-cli)
+[Documentation](https://ksef.piotrkrzysztof.dev/en/) &middot; [Dokumentacja (PL)](https://ksef.piotrkrzysztof.dev) &middot; [Polski](README.md) &middot; [Codeberg](https://codeberg.org/piotrkrzysztof/ksef-cli) &middot; [GitHub](https://github.com/straightchlorine/ksef-cli)
 
 Submitting invoices to KSeF from the command line.
 
@@ -55,11 +55,12 @@ for all businesses, regardless of their turnover.
 
 ## Documentation
 
-Configuration, token, commands and environments: [index.en.md](index.en.md).
+Configuration, token, commands and environments: <https://ksef.piotrkrzysztof.dev/en/>.
+The same documentation in Polish: <https://ksef.piotrkrzysztof.dev>.
 
 ## License
 
-MIT License. See [LICENSE](../LICENSE) for details.
+MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 

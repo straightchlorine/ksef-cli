@@ -1,0 +1,88 @@
+site_name: ksef-cli
+site_description: Narzędzie wiersza poleceń do wysyłania faktur do KSeF (Krajowy System e-Faktur, API 2.0). Wysyła gotowy XML FA(3), zapisuje UPO i zamienia faktury z Invoify.
+site_author: Piotr Krzysztof Lis
+site_url: https://ksef.piotrkrzysztof.dev/
+repo_url: https://codeberg.org/piotrkrzysztof/ksef-cli
+repo_name: piotrkrzysztof/ksef-cli
+edit_uri: src/branch/main/docs/
+copyright: Copyright &copy; 2026 <a href="https://piotrkrzysztof.dev">Piotr Krzysztof Lis</a>
+
+theme:
+  name: material
+  custom_dir: overrides
+  language: pl
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Tryb ciemny
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Tryb jasny
+  features:
+    - navigation.top
+    - navigation.footer
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.view
+    - toc.follow
+  icon:
+    logo: material/receipt-text-outline
+    repo: simple/codeberg
+    view: material/eye
+
+nav:
+  - Wprowadzenie: index.md
+  - Token i środowiska: token.md
+  - Konfiguracja: configuration.md
+  - Polecenia: commands.md
+  - Faktury z Invoify: invoify.md
+  - O projekcie: about.md
+
+plugins:
+  - search
+  - social:
+      cards_layout_options:
+        font_family: Roboto
+
+hooks:
+  - hooks/seo.py
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
+  - pymdownx.superfences
+
+extra:
+  alternate:
+    - name: Polski
+      link: /
+      lang: pl
+    - name: English
+      link: /en/
+      lang: en
+  lang_bases:
+    pl: https://ksef.piotrkrzysztof.dev/
+    en: https://ksef.piotrkrzysztof.dev/en/
+  og_locale: pl_PL
+  og_locale_alternate: en_US
+  social:
+    - icon: fontawesome/solid/globe
+      link: https://piotrkrzysztof.dev
+      name: piotrkrzysztof.dev
+    - icon: simple/codeberg
+      link: https://codeberg.org/piotrkrzysztof/ksef-cli
+      name: Kod źródłowy na Codeberg
+    - icon: fontawesome/brands/github
+      link: https://github.com/straightchlorine/ksef-cli
+      name: Kopia na GitHubie

@@ -2,3 +2,8 @@
 /ksef-cli
 ksef.conf
 /dist/
+
+# docs site
+/site/
+.cache/
+__pycache__/

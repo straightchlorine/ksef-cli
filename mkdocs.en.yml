@@ -1,0 +1,45 @@
+INHERIT: mkdocs.yml
+site_description: A command-line tool for submitting invoices to KSeF, Poland's national e-invoicing system (API 2.0). It submits a ready FA(3) XML, saves the UPO and converts Invoify invoices.
+site_url: https://ksef.piotrkrzysztof.dev/en/
+docs_dir: docs-en
+site_dir: site/en
+edit_uri: src/branch/main/docs-en/
+theme:
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+
+nav:
+  - Introduction: index.md
+  - Token and environments: token.md
+  - Configuration: configuration.md
+  - Commands: commands.md
+  - Invoices from Invoify: invoify.md
+  - About: about.md
+
+extra:
+  og_locale: en_US
+  og_locale_alternate: pl_PL
+  social:
+    - icon: fontawesome/solid/globe
+      link: https://piotrkrzysztof.dev
+      name: piotrkrzysztof.dev
+    - icon: simple/codeberg
+      link: https://codeberg.org/piotrkrzysztof/ksef-cli
+      name: Source code on Codeberg
+    - icon: fontawesome/brands/github
+      link: https://github.com/straightchlorine/ksef-cli
+      name: Copy on GitHub

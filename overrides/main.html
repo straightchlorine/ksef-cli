@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% set real_page = page and page.file and page.url != "404.html" %}
+  {% set site = config.site_url %}
+  {% set lang = config.theme.language %}
+  {% if real_page %}
+    {#- Bilingual site built twice (PL at /, EN at /en/) with identical page paths.
+    hreflang pairs live in sitemap.xml: head alternates make Material's JS fetch
+    <page>/sitemap.xml (404). hooks/seo.py strips Material's own relative ones. -#}
+    {% set url_pl = config.extra.lang_bases.pl ~ page.url %}
+    {% set url_en = config.extra.lang_bases.en ~ page.url %}
+  {% endif %}
+  <meta property="og:site_name" content="{{ config.site_name }}">
+  <meta property="og:locale" content="{{ config.extra.og_locale }}">
+  <meta property="og:locale:alternate" content="{{ config.extra.og_locale_alternate }}">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": {{ (site ~ "#website") | tojson }},
+        "name": {{ config.site_name | tojson }},
+        "url": {{ site | tojson }},
+        "description": {{ config.site_description | tojson }},
+        "inLanguage": {{ lang | tojson }},
+        "author": { "@id": "https://piotrkrzysztof.dev/#piotr" }
+      },
+      {
+        "@type": "Person",
+        "@id": "https://piotrkrzysztof.dev/#piotr",
+        "name": "Piotr Krzysztof Lis",
+        "alternateName": "Piotr Krzysztof",
+        "url": "https://piotrkrzysztof.dev",
+        "sameAs": ["https://github.com/straightchlorine", "https://codeberg.org/piotrkrzysztof", "https://pypi.org/user/straightchlorine", "https://hub.docker.com/u/straightchlorine", "https://www.linkedin.com/in/straightchlorine"]
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "@id": {{ (config.repo_url ~ "#code") | tojson }},
+        "name": "ksef-cli",
+        "codeRepository": {{ config.repo_url | tojson }},
+        "sameAs": "https://github.com/straightchlorine/ksef-cli",
+        "programmingLanguage": "Go",
+        "license": "https://opensource.org/licenses/MIT",
+        "author": { "@id": "https://piotrkrzysztof.dev/#piotr" }
+      }
+      {%- if real_page %},
+      {%- set src = page.file.src_path %}
+      {%- set page_url = site ~ page.url %}
+      {%- set other = (url_en if lang == "pl" else url_pl) ~ "#page" %}
+      {
+        "@type": {{ ("WebPage" if src == "index.md" else ("AboutPage" if src == "about.md" else "TechArticle")) | tojson }},
+        "@id": {{ (page_url ~ "#page") | tojson }},
+        "url": {{ page_url | tojson }},
+        "headline": {{ (page.meta.title or page.title) | tojson }},
+        "description": {{ (page.meta.description or config.site_description) | tojson }},
+        "inLanguage": {{ lang | tojson }},
+        "image": {{ (site ~ "assets/images/social/" ~ ((page.url | trim("/")) or "index") ~ ".png") | tojson }},
+        "isPartOf": { "@id": {{ (site ~ "#website") | tojson }} },
+        "isBasedOn": { "@id": {{ (config.repo_url ~ "#code") | tojson }} },
+        "author": { "@id": "https://piotrkrzysztof.dev/#piotr" },
+        {{ ("workTranslation" if lang == "pl" else "translationOfWork") | tojson }}: { "@id": {{ other | tojson }} }
+      }
+      {%- endif %}
+    ]
+  }
+  </script>
+{% endblock %}
+
+{% block styles %}
+  {{ super() }}
+  <style>
+    {#- WCAG AA: Material's grey for code comments and variables is 4.47:1 on the light scheme -#}
+    [data-md-color-scheme=default] {
+      --md-code-hl-comment-color: #626262;
+      --md-code-hl-variable-color: #626262;
+    }
+    .md-footer { --md-footer-fg-color--lighter: hsla(0, 0%, 100%, 0.6); }
+    {#- links inside text need more than colour to stand out -#}
+    .md-typeset a:not(.headerlink):not(.md-content__button):not(.md-button) {
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.2em;
+    }
+  </style>
+{% endblock %}

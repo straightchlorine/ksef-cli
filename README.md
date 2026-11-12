@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[Dokumentacja](docs/index.md) &middot; [English](docs/en.md) &middot; [Codeberg](https://codeberg.org/piotrkrzysztof/ksef-cli)
+[Dokumentacja](https://ksef.piotrkrzysztof.dev) &middot; [Documentation (EN)](https://ksef.piotrkrzysztof.dev/en/) &middot; [English](README.en.md) &middot; [Codeberg](https://codeberg.org/piotrkrzysztof/ksef-cli) &middot; [GitHub](https://github.com/straightchlorine/ksef-cli)
 
 Wysyłanie faktur do KSeF z wiersza poleceń.
 
@@ -31,7 +31,7 @@ Narzędzie nie tworzy faktur od zera!
 ## Jak zacząć?
 
 Potrzebny jest Go 1.26 lub nowszy oraz token z Aplikacji Podatnika KSeF
-(zakładka „Tokeny").
+(zakładka "Tokeny").
 
 ```bash
 go install codeberg.org/piotrkrzysztof/ksef-cli/cmd/ksef@latest
@@ -55,7 +55,8 @@ dla wszystkich przedsiębiorców - niezależnie od ich dochodów.
 
 ## Dokumentacja
 
-Konfiguracja, token, opis poleceń i środowisk: [docs/index.md](docs/index.md).
+Konfiguracja, token, opis poleceń i środowisk: <https://ksef.piotrkrzysztof.dev>.
+Ta sama dokumentacja po angielsku: <https://ksef.piotrkrzysztof.dev/en/>.
 
 ## Licencja
 

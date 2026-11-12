@@ -1,0 +1,23 @@
+# ksef-cli
+
+> A command-line tool for submitting invoices to KSeF (Krajowy System e-Faktur, Poland's national e-invoicing system, API 2.0). It takes a ready FA(3) invoice XML, logs in with a token, encrypts the invoice, submits it, saves the UPO receipt and prints the KSeF number with a public verification link.
+
+The program is written in Go and uses only the standard library. The convert command turns an Invoify JSON or XML export into an FA(3) invoice of a VAT-exempt seller (art. 113). The tool works with the test, demo and production environments. The same site exists in Polish at https://ksef.piotrkrzysztof.dev/.
+
+## Pages
+
+- [Introduction](https://ksef.piotrkrzysztof.dev/en/): what the tool does, features, installation and the first commands
+- [KSeF token and environments](https://ksef.piotrkrzysztof.dev/en/token/): generating a token in the taxpayer app, permissions, the KSEF_TOKEN variable and the addresses of test, demo and prod
+- [Configuration](https://ksef.piotrkrzysztof.dev/en/configuration/): the ksef.conf file, its keys, the KSEF_CONFIG variable and what goes to disk
+- [Commands](https://ksef.piotrkrzysztof.dev/en/commands/): init, selfcheck, send, list, pull and version, their output and exit codes
+- [Invoices from Invoify](https://ksef.piotrkrzysztof.dev/en/invoify/): the convert command, custom fields, options, the NBP mid rate and default options in ksef.conf
+- [About](https://ksef.piotrkrzysztof.dev/en/about/): what the tool does not do, code layout, tests, license and author
+
+## Optional
+
+- [Repository](https://codeberg.org/piotrkrzysztof/ksef-cli): source code and releases on Codeberg
+- [Copy on GitHub](https://github.com/straightchlorine/ksef-cli): a copy of the repository and releases
+- [Polish version](https://ksef.piotrkrzysztof.dev/): the same documentation in Polish
+- [Author](https://piotrkrzysztof.dev/): Piotr Krzysztof Lis
+
+To the only God, be honour and glory for ever and ever.

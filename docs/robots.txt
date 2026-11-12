@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ksef.piotrkrzysztof.dev/sitemap.xml
+Sitemap: https://ksef.piotrkrzysztof.dev/en/sitemap.xml
