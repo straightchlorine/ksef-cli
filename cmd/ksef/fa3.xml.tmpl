@@ -17,12 +17,12 @@
     <DaneIdentyfikacyjne>
 {{- if .Buyer.NIP}}
       <NIP>{{.Buyer.NIP}}</NIP>
-{{- else if .Buyer.NrVatUE}}
+{{- else if .Buyer.VAT}}
       <KodUE>{{.Buyer.KodUE}}</KodUE>
       <NrVatUE>{{.Buyer.NrVatUE}}</NrVatUE>
-{{- else if .Buyer.NrID}}
+{{- else if .Buyer.OtherID}}
       <KodKraju>{{.Buyer.Country}}</KodKraju>
-      <NrID>{{.Buyer.NrID}}</NrID>
+      <NrID>{{.Buyer.OtherID}}</NrID>
 {{- else}}
       <BrakID>1</BrakID>
 {{- end}}
@@ -35,6 +35,9 @@
   <Fa>
     <KodWaluty>{{.Currency}}</KodWaluty>
     <P_1>{{.Issued}}</P_1>
+{{- if .PlaceOfIssue}}
+    <P_1M>{{.PlaceOfIssue}}</P_1M>
+{{- end}}
     <P_2>{{.Number}}</P_2>
 {{- if .SaleDate}}
     <P_6>{{.SaleDate}}</P_6>
@@ -59,16 +62,25 @@
       </PMarzy>
     </Adnotacje>
     <RodzajFaktury>VAT</RodzajFaktury>
-{{- range .Lines}}
-    <FaWiersz>
-      <NrWierszaFa>{{.Nr}}</NrWierszaFa>
-      <P_7>{{.Name}}</P_7>
-{{- if $.Unit}}
-      <P_8A>{{$.Unit}}</P_8A>
+{{- range .Descriptions}}
+    <DodatkowyOpis>
+{{- if .Line}}
+      <NrWiersza>{{.Line}}</NrWiersza>
 {{- end}}
-      <P_8B>{{.Quantity}}</P_8B>
-      <P_9B>{{.UnitPrice}}</P_9B>
-      <P_11A>{{.Total}}</P_11A>
+      <Klucz>{{.Key}}</Klucz>
+      <Wartosc>{{.Value}}</Wartosc>
+    </DodatkowyOpis>
+{{- end}}
+{{- range $i, $l := .Lines}}
+    <FaWiersz>
+      <NrWierszaFa>{{inc $i}}</NrWierszaFa>
+      <P_7>{{.Name}}</P_7>
+{{- if .Unit}}
+      <P_8A>{{.Unit}}</P_8A>
+{{- end}}
+      <P_8B>{{.Qty}}</P_8B>
+      <P_9B>{{.Price}}</P_9B>
+      <P_11A>{{.Sum}}</P_11A>
       <P_12>zw</P_12>
 {{- if $.Rate}}
       <KursWaluty>{{$.Rate}}</KursWaluty>
@@ -90,6 +102,9 @@
       <FormaPlatnosci>6</FormaPlatnosci>
       <RachunekBankowy>
         <NrRB>{{.Account}}</NrRB>
+{{- if .SWIFT}}
+        <SWIFT>{{.SWIFT}}</SWIFT>
+{{- end}}
 {{- if .BankName}}
         <NazwaBanku>{{.BankName}}</NazwaBanku>
 {{- end}}
@@ -100,12 +115,19 @@
 {{- end}}
     </Platnosc>
 {{- end}}
+{{- if .OrderNumber}}
+    <WarunkiTransakcji>
+      <Zamowienia>
+        <NrZamowienia>{{.OrderNumber}}</NrZamowienia>
+      </Zamowienia>
+    </WarunkiTransakcji>
+{{- end}}
   </Fa>
-{{- if or .Notes .REGON}}
+{{- if or .Footer .REGON}}
   <Stopka>
-{{- if .Notes}}
+{{- if .Footer}}
     <Informacje>
-      <StopkaFaktury>{{.Notes}}</StopkaFaktury>
+      <StopkaFaktury>{{.Footer}}</StopkaFaktury>
     </Informacje>
 {{- end}}
 {{- if .REGON}}
@@ -119,7 +141,9 @@
 {{define "party"}}    <Adres>
       <KodKraju>{{.Country}}</KodKraju>
       <AdresL1>{{.Addr1}}</AdresL1>
+{{- if .Addr2}}
       <AdresL2>{{.Addr2}}</AdresL2>
+{{- end}}
     </Adres>
 {{- if or .Email .Phone}}
     <DaneKontaktowe>

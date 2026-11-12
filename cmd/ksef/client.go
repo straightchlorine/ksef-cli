@@ -168,11 +168,17 @@ func apiCall(method, url, bearer string, in any) ([]byte, error) {
 		return nil, fmt.Errorf("%s %s: %w", method, url, err)
 	}
 	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("%s %s%s: %s: %s", method, req.URL.Host, req.URL.Path,
-			resp.Status, apiError(body))
+		return nil, &refusedError{fmt.Sprintf("%s %s%s: %s: %s", method, req.URL.Host,
+			req.URL.Path, resp.Status, apiError(body))}
 	}
 	return body, nil
 }
+
+// refusedError is an answer from the server that says no. Any other error
+// from apiCall means the request may or may not have got through.
+type refusedError struct{ msg string }
+
+func (e *refusedError) Error() string { return e.msg }
 
 // apiError picks the message out of a KSeF error body, or returns the body as is.
 func apiError(body []byte) string {

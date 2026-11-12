@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,7 +17,7 @@ func invoifyJSON(edit func(string) string) []byte {
 	s := `{
   "sender": {"name": "Jan & Syn <sp. j.>", "address": "Prosta 1", "zipCode": "00-001",
     "city": "Warszawa", "country": "Poland", "email": "", "phone": "+48 600 100 200",
-    "customInputs": [{"key": "NIP", "value": "123-456-78-90"}]},
+    "customInputs": [{"key": "NIP", "value": "123-456-32-18"}]},
   "receiver": {"name": "Kupiec", "address": "Krzywa 2", "zipCode": "00-002",
     "city": "Kraków", "country": "Polska", "email": "", "phone": "",
     "customInputs": [{"key": "nip", "value": "9999999999"}]},
@@ -43,7 +45,7 @@ func TestConvert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if head.SellerNIP != "1234567890" || head.IssueDate != "2026-03-01" ||
+	if head.SellerNIP != "1234563218" || head.IssueDate != "2026-03-01" ||
 		head.Form.SystemCode != "FA (3)" {
 		t.Errorf("head %+v", head)
 	}
@@ -141,7 +143,7 @@ func TestConvertXMLInput(t *testing.T) {
   <sender><name>Jan &amp; Syn &lt;sp. j.&gt;</name><address>Prosta 1</address>
     <zipCode>00-001</zipCode><city>Warszawa</city><country>Poland</country><email/>
     <phone>+48 600 100 200</phone>
-    <customInputs><key>NIP</key><value>123-456-78-90</value></customInputs></sender>
+    <customInputs><key>NIP</key><value>123-456-32-18</value></customInputs></sender>
   <receiver><name>Kupiec</name><address>Krzywa 2</address><zipCode>00-002</zipCode>
     <city>Kraków</city><country>Polska</country><email/><phone/>
     <customInputs><key>nip</key><value>9999999999</value></customInputs></receiver>
@@ -197,21 +199,86 @@ func TestConvertSaleAndPaidDates(t *testing.T) {
 	}
 }
 
-// The notes name optional values left out and custom fields convert skipped.
-func TestConvertNotes(t *testing.T) {
+// What Invoify carries beyond the basics lands on the invoice: item
+// description, payment terms, order number, SWIFT and unknown custom fields.
+func TestConvertCarriesExtras(t *testing.T) {
 	in := invoifyJSON(func(s string) string {
-		return strings.Replace(s, `{"key": "nip", "value": "9999999999"}`,
-			`{"key": "nip", "value": "9999999999"}, {"key": "Steuernummer", "value": "1"}`, 1)
+		s = strings.Replace(s, `{"key": "nip", "value": "9999999999"}`,
+			`{"key": "nip", "value": "9999999999"}, {"key": "Steuernummer", "value": "12/3"}`, 1)
+		s = strings.Replace(s, `{"key": "NIP", "value": "123-456-32-18"}`,
+			`{"key": "NIP", "value": "123-456-32-18"}, {"key": "swift", "value": "ALBPPLPW"}`, 1)
+		s = strings.Replace(s, `"name": "Usługa",`, `"name": "Usługa", "description": "Opis <1>",`, 1)
+		return strings.Replace(s, `"currency":`,
+			`"purchaseOrderNumber": "PO-1", "paymentTerms": "7 dni", "currency":`, 1)
 	})
-	out, err := convertInvoify(in, convertOpts{Paid: true}, testNow)
+	out, err := convertInvoify(in, convertOpts{Paid: true, Place: "Wrocław"}, testNow)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := convertNotes(in, out)
-	want := [][2]string{
-		{"not set", "sale date (--sale-date)"}, {"ignored", "Steuernummer (receiver)"}}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got %q, want %q", got, want)
+	for _, want := range []string{
+		"<P_1M>Wrocław</P_1M>",
+		"<NrWiersza>1</NrWiersza>\n      <Klucz>Opis</Klucz>\n      <Wartosc>Opis &lt;1&gt;</Wartosc>",
+		"<Klucz>Warunki płatności</Klucz>\n      <Wartosc>7 dni</Wartosc>",
+		"<Klucz>Nabywca: Steuernummer</Klucz>\n      <Wartosc>12/3</Wartosc>",
+		"<NrZamowienia>PO-1</NrZamowienia>",
+	} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("missing %s\n%s", want, out)
+		}
+	}
+	if strings.Contains(string(out), "SWIFT") {
+		t.Error("SWIFT without a bank account has nowhere to go")
+	}
+	want := [][2]string{{"not set", "sale date (--sale-date)"}}
+	if got := convertNotes(out); !reflect.DeepEqual(got, want) {
+		t.Errorf("notes %q, want %q", got, want)
+	}
+}
+
+// convert_options is split like a shell line, quotes included.
+func TestSplitArgs(t *testing.T) {
+	for in, want := range map[string][]string{
+		``:                                 nil,
+		`--paid  --unit szt.`:              {"--paid", "--unit", "szt."},
+		`--unit ""`:                        {"--unit", ""},
+		`--place "Nowy Sącz" --paid`:       {"--place", "Nowy Sącz", "--paid"},
+		`--exemption 'art. 43 "x"' --paid`: {"--exemption", `art. 43 "x"`, "--paid"},
+		`--buyer-id HRB" 1"`:               {"--buyer-id", "HRB 1"},
+	} {
+		got, err := splitArgs(in)
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Errorf("splitArgs(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+	if _, err := splitArgs(`--place "Nowy`); err == nil {
+		t.Error("an unclosed quote should be an error")
+	}
+}
+
+// The whole command: config defaults with quotes, overridden on the command line.
+func TestCmdConvert(t *testing.T) {
+	dir := t.TempDir()
+	in, out := filepath.Join(dir, "in.json"), filepath.Join(dir, "out.xml")
+	conf := filepath.Join(dir, "ksef.conf")
+	os.WriteFile(in, invoifyJSON(nil), 0o600)
+	options := `convert_options=--unit "" --place "Nowy Sącz" --paid-date 2026-03-01`
+	os.WriteFile(conf, []byte(options+"\n"), 0o600)
+	t.Setenv("KSEF_CONFIG", conf)
+
+	if err := cmdConvert([]string{"--paid-date", "2026-03-05", in, out}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(out)
+	for _, want := range []string{"<P_1M>Nowy Sącz</P_1M>", "<DataZaplaty>2026-03-05<"} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+	if strings.Contains(string(got), "P_8A") {
+		t.Error(`--unit "" should leave the unit out`)
+	}
+	if err := cmdConvert([]string{in, in}); err == nil {
+		t.Error("writing the result over the input should be refused")
 	}
 }
 
@@ -227,11 +294,20 @@ func TestConvertRefuses(t *testing.T) {
 		"tax": {
 			replace(`"taxDetails": {"amount": 0}`, `"taxDetails": {"amount": 9}`), noOpts},
 		"total mismatch":  {replace(`"totalAmount": 250`, `"totalAmount": 300`), convertOpts{}},
-		"no seller NIP":   {replace(`"123-456-78-90"`, `""`), convertOpts{}},
+		"no seller NIP":   {replace(`"123-456-32-18"`, `""`), convertOpts{}},
 		"rate for PLN":    {nil, convertOpts{Rate: "4.2"}},
 		"bad sale date":   {nil, convertOpts{SaleDate: "27.02.2026"}},
 		"rate and lookup": {replace(`"PLN"`, `"EUR"`), convertOpts{Rate: "4.2", RateDate: "2026-02-27"}},
 		"bad rate":        {replace(`"PLN"`, `"EUR"`), convertOpts{Rate: "abc"}},
+		"NaN quantity":    {replace(`"quantity": "2"`, `"quantity": "NaN"`), convertOpts{}},
+		"infinite price":  {replace(`"unitPrice": 49`, `"unitPrice": "Inf"`), convertOpts{}},
+		"NaN total":       {replace(`"totalAmount": 250`, `"totalAmount": "NaN"`), convertOpts{}},
+		"hex quantity":    {replace(`"quantity": "2"`, `"quantity": "0x1p1"`), convertOpts{}},
+		"foreign id as NIP": {
+			replace(`"value": "9999999999"`, `"value": "SK2020123456"`), convertOpts{}},
+		"NIP typo":     {replace(`"value": "9999999999"`, `"value": "9999999998"`), convertOpts{}},
+		"odd currency": {replace(`"PLN"`, `"eur/../x"`), convertOpts{}},
+		"blank number": {replace(`"FV/1"`, `"   "`), convertOpts{}},
 	} {
 		if _, err := convertInvoify(invoifyJSON(tc.edit), tc.opts, testNow); err == nil {
 			t.Errorf("%s: should be refused", name)

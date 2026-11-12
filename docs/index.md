@@ -103,6 +103,7 @@ z pól dodatkowych (custom inputs):
 |----------|------------|--------------------------------------------------|
 | nadawca  | `NIP`      | NIP sprzedawcy. Wymagany.                        |
 | nadawca  | `REGON`    | REGON, trafia do stopki.                         |
+| nadawca  | `SWIFT`    | Kod SWIFT rachunku (także jako `BIC`).           |
 | odbiorca | `NIP`      | Polski NIP nabywcy.                              |
 | odbiorca | `VAT`      | Numer VAT UE z prefiksem kraju, np. `DE123...`.  |
 | odbiorca | `NrID`     | Inny zagraniczny identyfikator.                  |
@@ -112,6 +113,14 @@ Pole `VAT` może też nazywać się `NrVatUE`, `VAT UE` albo `VAT ID`. Bez
 żadnego identyfikatora nabywca jest oznaczany jako podmiot bez
 identyfikatora. Kraj nabywcy to kod dwuliterowy (`DE`) albo nazwa po polsku
 lub angielsku (`Niemcy`, `Germany`).
+
+NIP jest sprawdzany: 10 cyfr i cyfra kontrolna. Zagraniczny numer wpisany
+w polu `NIP` jest odrzucany. Numer VAT spoza UE (np. `GB...`) trafia na fakturę
+jako inny identyfikator zagraniczny.
+
+Z faktury Invoify przenoszone są też: opis pozycji, warunki płatności, numer
+zamówienia oraz każde inne pole dodatkowe. Trafiają na fakturę jako dodatkowe
+opisy (pary klucz i wartość), a numer zamówienia do warunków transakcji.
 
 Opcje podaje się przed plikami. Dotyczą wartości, na które Invoify nie ma
 pól:
@@ -123,6 +132,7 @@ pól:
 | `--paid`             | Oznacza fakturę jako zapłaconą dziś.                    |
 | `--paid-date DATA`   | Oznacza fakturę jako zapłaconą w podanym dniu.          |
 | `--due-date DATA`    | Termin płatności zamiast tego z faktury.                |
+| `--place TEKST`      | Miejsce wystawienia faktury.                            |
 | `--rate KURS`        | Kurs waluty zamiast kursu NBP.                          |
 | `--rate-date DATA`   | Kurs średni NBP z tego dnia albo ostatni przed nim.     |
 | `--buyer-country XX` | Kod kraju nabywcy, gdy nazwa nie jest rozpoznana.       |
@@ -141,16 +151,16 @@ ksef convert --sale-date 2026-10-31 faktura.json faktura.xml
 ```
 
 Regularnie używane opcje można wpisać raz do `ksef.conf`. Parametry z wiersza
-poleceń mają pierwszeństwo:
+poleceń mają pierwszeństwo. Wartości ze spacją ujmij w cudzysłów, np.
+`--place "Nowy Sącz"`:
 
 ```
 convert_options=--sale-date prev-month-end --paid
 ```
 
 Po konwersji `convert` pokazuje podsumowanie faktury: numer, daty, strony,
-pozycje, kwotę z kursem i płatność. Wiersz `not set` wymienia opcjonalne
-wartości, których nie ustawiono, a `ignored` pola dodatkowe z Invoify, których
-`convert` nie czyta.
+pozycje, kwotę z kursem i płatność. Wiersz `extra` wymienia dodatkowe
+opisy, a `not set` opcjonalne wartości, których nie ustawiono.
 
 Przejrzyj wynikowy XML przed wysyłką. Za treść faktury odpowiada jej
 wystawca.
@@ -177,8 +187,11 @@ Sending faktura.xml to KSeF (env=test)...
 - Jeśli plik UPO już istnieje, `send` odmawia wysyłki. Faktura wygląda na
   wysłaną.
 - Jeśli KSeF uzna fakturę za duplikat, komunikat podaje numer KSeF oryginału.
-- Jeśli KSeF nie skończy w minutę, `send` podaje numery sesji i faktury.
-  Nie wysyłaj jej ponownie. Sprawdź później przez `ksef list`.
+- Jeśli KSeF nie skończy w minutę albo nie da się odczytać statusu, `send`
+  podaje numery sesji i faktury. Nie wysyłaj jej ponownie. Sprawdź później
+  przez `ksef list`.
+- Jeśli połączenie zerwie się w chwili wysyłki, faktura mogła dotrzeć do KSeF.
+  Zanim wyślesz ją ponownie, sprawdź `ksef list`.
 
 ### `ksef list [ROK]`
 
@@ -222,6 +235,11 @@ wyłącza zmienna `NO_COLOR`.
 
 Cały kod leży w `cmd/ksef/` jako jeden pakiet `main` i korzysta wyłącznie
 z biblioteki standardowej Go.
+
+Faktura ma jeden wspólny model (`invoice.go`), który sprawdza dane i tworzy XML
+FA(3). Invoify jest tylko jednym czytnikiem, który ten model wypełnia
+(`invoify.go`). Nowe pole dodaje się raz w modelu i szablonie, a każdy czytnik
+może z niego korzystać.
 
 ```bash
 go test ./...

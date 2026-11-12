@@ -16,6 +16,14 @@ import (
 	"time"
 )
 
+// Faults the fake server injects into a send: the invoice request is dropped
+// without an answer, or the status call fails this many times.
+var (
+	fakeDropsSend      bool
+	fakeUPOFails       bool
+	fakeStatusFailures int
+)
+
 // fakeKSeF serves the auth and send endpoints the way the real API does and
 // fails the test when a request is malformed. authCode and invoiceCode are the
 // statuses the login and the sent invoice end with.
@@ -125,6 +133,12 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 	})
 	invoices := "/sessions/online/sess-1/invoices"
 	on("POST "+invoices, "access-token", func(w http.ResponseWriter, r *http.Request) {
+		if fakeDropsSend {
+			// take the request, then cut the line without answering
+			conn, _, _ := w.(http.Hijacker).Hijack()
+			conn.Close()
+			return
+		}
 		var req struct {
 			InvoiceHash, EncryptedInvoiceHash, EncryptedInvoiceContent string
 			InvoiceSize, EncryptedInvoiceSize                          int
@@ -146,6 +160,11 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 	invoicePolls := 0
 	sentInvoice := "GET /sessions/sess-1/invoices/inv-1"
 	on(sentInvoice, "access-token", func(w http.ResponseWriter, _ *http.Request) {
+		if fakeStatusFailures > 0 {
+			fakeStatusFailures--
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
 		st := statusInfo{Code: invoiceCode, Description: "desc"}
 		if invoicePolls++; invoicePolls == 1 {
 			st.Code = 100
@@ -156,6 +175,10 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		reply(w, 200, map[string]any{"ksefNumber": "KSEF-NUMBER-1", "status": st})
 	})
 	on(sentInvoice+"/upo", "access-token", func(w http.ResponseWriter, _ *http.Request) {
+		if fakeUPOFails {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		w.Write([]byte("<upo/>"))
 	})
 
@@ -199,6 +222,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		srv.Close()
 		delete(baseURLs, "fake")
 		pollInterval = oldInterval
+		fakeDropsSend, fakeUPOFails, fakeStatusFailures = false, false, 0
 	})
 	return &Config{Env: "fake", NIP: "1234567890", Token: "secret-token", CacheDir: t.TempDir()}
 }

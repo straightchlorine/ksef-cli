@@ -29,7 +29,9 @@ Subcommands:
   convert     Turn an Invoify JSON or XML export into an FA(3) XML of a VAT-exempt
               seller (art. 113), to stdout or OUT.xml. Read from the invoice:
               the seller's NIP (custom field NIP), the buyer's id (custom
-              field NIP, VAT or NrID) and the buyer's country. A non-PLN
+              field NIP, VAT or NrID), the buyer's country and a SWIFT code
+              (sender's custom field SWIFT). Item descriptions, payment terms,
+              the order number and any other custom field are carried over. A non-PLN
               invoice gets NBP's rate from the last working day before the
               invoice date. Options, all before the files:
                 --sale-date DATE      sale date (P_6), when it differs from the
@@ -38,6 +40,7 @@ Subcommands:
                 --paid                mark as paid today
                 --paid-date DATE      mark as paid on DATE
                 --due-date DATE       payment due date, instead of the invoice's
+                --place TEXT          place of issue
                 --rate N              exchange rate, instead of NBP's
                 --rate-date DATE      NBP's rate for that day, or the last before
                 --buyer-country XX    when the country is not recognised

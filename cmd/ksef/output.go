@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -137,7 +138,8 @@ func printSummary(w *os.File, h *invoiceHead) {
 	b := h.Buyer
 	buyerID := joined(" ", prefixed("NIP ", b.NIP), prefixed("VAT ", b.KodUE+b.NrVatUE),
 		prefixed("id ", b.NrID))
-	field(w, "invoice", joined(", ", h.Number, prefixed("issued ", h.IssueDate),
+	issued := prefixed("issued ", joined(" in ", h.IssueDate, h.Place))
+	field(w, "invoice", joined(", ", h.Number, issued,
 		prefixed("sale ", h.SaleDate), prefixed("sale ", joined(" to ", h.SaleFrom, h.SaleTo))))
 	field(w, "seller", joined(", ", h.SellerName, prefixed("NIP ", h.SellerNIP)))
 	field(w, "buyer", joined(", ", b.Name, buyerID))
@@ -155,6 +157,8 @@ func printSummary(w *os.File, h *invoiceHead) {
 	}
 	field(w, "total", joined(" ", h.Total, h.Currency, prefixed("at ", rate)))
 	field(w, "payment", joined(", ", prefixed("due ", h.DueDate), prefixed("paid ", h.PaidDate)))
+	field(w, "order", h.Order)
+	field(w, "extra", strings.Join(slices.Compact(slices.Clone(h.Extras)), ", "))
 }
 
 // printTable prints rows in aligned columns: the first row is the header,

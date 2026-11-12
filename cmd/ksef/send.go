@@ -6,7 +6,9 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"time"
 )
@@ -50,6 +52,9 @@ type invoiceHead struct {
 	Total     string        `xml:"Fa>P_15"`
 	Currency  string        `xml:"Fa>KodWaluty"`
 	Lines     []invoiceLine `xml:"Fa>FaWiersz"`
+	Place     string        `xml:"Fa>P_1M"`
+	Order     string        `xml:"Fa>WarunkiTransakcji>Zamowienia>NrZamowienia"`
+	Extras    []string      `xml:"Fa>DodatkowyOpis>Klucz"`
 	DueDate   string        `xml:"Fa>Platnosc>TerminPlatnosci>Termin"`
 	PaidDate  string        `xml:"Fa>Platnosc>DataZaplaty"`
 }
@@ -151,6 +156,11 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 		"encryptedInvoiceSize":    len(encrypted),
 		"encryptedInvoiceContent": base64.StdEncoding.EncodeToString(encrypted),
 	}, &sentInvoice)
+	var refused *refusedError
+	if err != nil && !errors.As(err, &refused) {
+		return nil, fmt.Errorf("%w - the invoice may have reached KSeF (session %s): "+
+			"check ksef list before sending it again", err, session.ReferenceNumber)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -165,38 +175,57 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 	}
 	invoiceURL := sessions + "/" + session.ReferenceNumber + "/invoices/" +
 		sentInvoice.ReferenceNumber
+	// The invoice is with KSeF from here on, so a failing status call must not
+	// read as a failed send: retry it, and say "do not resend" if it keeps failing.
+	failures := 0
 	for i := 0; ; i++ {
-		if err := apiJSON("GET", invoiceURL, access, nil, &inv); err != nil {
-			return nil, err
+		inv.Status.Code = 0
+		err := apiJSON("GET", invoiceURL, access, nil, &inv)
+		if err == nil && inv.Status.Code == 0 {
+			err = errors.New("the answer carries no status")
 		}
-		if inv.Status.Code != 100 && inv.Status.Code != 150 {
+		if err == nil && inv.Status.Code != 100 && inv.Status.Code != 150 {
 			break
 		}
-		if i == pollAttempts {
-			return nil, fmt.Errorf(
-				"sent, but KSeF is still processing it (session %s, invoice %s) - do not resend",
-				session.ReferenceNumber, sentInvoice.ReferenceNumber,
-			)
+		if err != nil {
+			failures++
+		}
+		if i == pollAttempts || failures == 5 {
+			why := "KSeF is still processing it"
+			if err != nil {
+				why = "its status could not be read: " + err.Error()
+			}
+			return nil, fmt.Errorf("sent, but %s (session %s, invoice %s) - "+
+				"do not resend, check ksef list in a while",
+				why, session.ReferenceNumber, sentInvoice.ReferenceNumber)
 		}
 		time.Sleep(pollInterval)
 	}
 	if inv.Status.Code != 200 {
 		extra := ""
-		if len(inv.Status.Extensions) > 0 {
-			extra = fmt.Sprint(" ", inv.Status.Extensions)
+		for _, k := range slices.Sorted(maps.Keys(inv.Status.Extensions)) {
+			extra += fmt.Sprintf(" %s=%s", k, inv.Status.Extensions[k])
 		}
 		return nil, fmt.Errorf("invoice rejected: %d %s %v%s", inv.Status.Code,
 			inv.Status.Description, inv.Status.Details, extra)
 	}
 
 	res := &sent{KsefNumber: inv.KsefNumber, Head: head, VerifyURL: verifyURL}
-	upo, err := apiCall("GET", invoiceURL+"/upo", access, nil)
+	var upo []byte
+	for try := 0; try < 3; try++ {
+		if upo, err = apiCall("GET", invoiceURL+"/upo", access, nil); err == nil {
+			break
+		}
+		time.Sleep(pollInterval)
+	}
 	if err == nil {
 		err = os.WriteFile(upoPath, upo, 0o644)
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s accepted, but the UPO was not saved: %v\n",
-			paint(os.Stderr, yellow, "[ WARN ]"), err)
+		// without the UPO file nothing stops a second send of this file
+		fmt.Fprintf(os.Stderr, "%s accepted as %s, but the UPO was not saved: %v\n"+
+			"         do not send this file again\n",
+			paint(os.Stderr, yellow, "[ WARN ]"), inv.KsefNumber, err)
 	} else {
 		res.UPOPath = upoPath
 	}

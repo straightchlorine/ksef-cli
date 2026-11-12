@@ -103,6 +103,7 @@ inputs:
 |----------|------------|---------------------------------------------------|
 | sender   | `NIP`      | The seller's NIP. Required.                       |
 | sender   | `REGON`    | REGON, placed in the footer.                      |
+| sender   | `SWIFT`    | SWIFT code of the account (also as `BIC`).        |
 | receiver | `NIP`      | The buyer's Polish NIP.                           |
 | receiver | `VAT`      | EU VAT number with a country prefix, `DE123...`.  |
 | receiver | `NrID`     | Another foreign identifier.                       |
@@ -113,6 +114,15 @@ identifier at all, the buyer is marked as an entity without one. The
 buyer's country is a two-letter code (`DE`) or a name in Polish or English
 (`Niemcy`, `Germany`).
 
+A NIP is checked: 10 digits and the check digit. A foreign number typed into
+the `NIP` field is refused. A VAT number from outside the EU (e.g. `GB...`)
+goes onto the invoice as another foreign identifier.
+
+Also carried over from the Invoify invoice: item descriptions, payment
+terms, the order number and every other custom field. They go onto the invoice
+as additional descriptions (key and value pairs), and the order number into
+the transaction terms.
+
 Options go before the files. They cover values Invoify has no fields for:
 
 | Option               | Meaning                                                  |
@@ -122,6 +132,7 @@ Options go before the files. They cover values Invoify has no fields for:
 | `--paid`             | Marks the invoice as paid today.                         |
 | `--paid-date DATE`   | Marks the invoice as paid on the given day.              |
 | `--due-date DATE`    | Payment due date, instead of the invoice's.              |
+| `--place TEXT`       | Place of issue.                                          |
 | `--rate RATE`        | Exchange rate, instead of NBP's.                         |
 | `--rate-date DATE`   | NBP's mid rate for that day, or the last one before it.  |
 | `--buyer-country XX` | The buyer's country code, when the name is not known.    |
@@ -140,16 +151,17 @@ ksef convert --sale-date 2026-10-31 invoice.json invoice.xml
 ```
 
 Options you use regularly can be written once in `ksef.conf`. Command-line
-parameters take precedence:
+parameters take precedence. Put values with a space in quotes, e.g.
+`--place "Nowy Sącz"`:
 
 ```
 convert_options=--sale-date prev-month-end --paid
 ```
 
 After converting, `convert` shows a summary of the invoice: number, dates,
-parties, items, total with the rate, and payment. The `not set` line names
-optional values that were left out, and `ignored` names Invoify custom fields
-that `convert` does not read.
+parties, items, total with the rate, and payment. The `extra` line names the
+additional descriptions, and `not set` names optional values that were left
+out.
 
 Review the resulting XML before submitting it. The issuer is responsible
 for the content of the invoice.
@@ -177,8 +189,11 @@ Sending invoice.xml to KSeF (env=test)...
   looks already sent.
 - If KSeF considers the invoice a duplicate, the message gives the KSeF
   number of the original.
-- If KSeF does not finish within a minute, `send` gives the session and
-  invoice numbers. Do not submit it again. Check later with `ksef list`.
+- If KSeF does not finish within a minute, or the status cannot be read,
+  `send` gives the session and invoice numbers. Do not submit it again. Check
+  later with `ksef list`.
+- If the connection drops at the moment of submission, the invoice may have
+  reached KSeF. Check `ksef list` before submitting it again.
 
 ### `ksef list [YEAR]`
 
@@ -224,6 +239,11 @@ variable switches colours off.
 
 All code lives in `cmd/ksef/` as a single `main` package and uses only the
 Go standard library.
+
+An invoice has one shared model (`invoice.go`) that checks the data and
+produces the FA(3) XML. Invoify is just one reader that fills that model
+(`invoify.go`). A new field is added once, in the model and the template, and
+every reader can use it.
 
 ```bash
 go test ./...

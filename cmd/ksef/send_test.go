@@ -65,6 +65,58 @@ func TestSendRejected(t *testing.T) {
 	}
 }
 
+// Once the invoice is with KSeF, trouble reading its status must never look
+// like a failed send.
+func TestSendStatusTrouble(t *testing.T) {
+	cfg := fakeKSeF(t, 200, 200)
+	fakeStatusFailures = 3
+	res, err := sendInvoice(cfg, writeInvoice(t, sampleInvoice))
+	if err != nil || res.KsefNumber != "KSEF-NUMBER-1" {
+		t.Errorf("a few failed status calls should be ridden out, got %v", err)
+	}
+
+	fakeStatusFailures = 100
+	path := writeInvoice(t, sampleInvoice)
+	_, err = sendInvoice(cfg, path)
+	if err == nil || !strings.Contains(err.Error(), "do not resend") ||
+		!strings.Contains(err.Error(), "sess-1") {
+		t.Errorf("want a do-not-resend error naming the session, got %v", err)
+	}
+}
+
+// Accepted, but the receipt cannot be fetched: still a success, with no UPO
+// file left behind.
+func TestSendUPOUnavailable(t *testing.T) {
+	cfg := fakeKSeF(t, 200, 200)
+	fakeUPOFails = true
+	path := writeInvoice(t, sampleInvoice)
+	res, err := sendInvoice(cfg, path)
+	if err != nil || res.KsefNumber != "KSEF-NUMBER-1" || res.UPOPath != "" {
+		t.Errorf("got %+v, %v", res, err)
+	}
+	if _, statErr := os.Stat(strings.TrimSuffix(path, ".xml") + ".upo.xml"); statErr == nil {
+		t.Error("no UPO file should be written")
+	}
+}
+
+// An answer without a status is not a verdict on the invoice.
+func TestSendStatusEmpty(t *testing.T) {
+	_, err := sendInvoice(fakeKSeF(t, 200, 0), writeInvoice(t, sampleInvoice))
+	if err == nil || !strings.Contains(err.Error(), "do not resend") {
+		t.Errorf("want a do-not-resend error, got %v", err)
+	}
+}
+
+// No answer to the invoice request: it may or may not have arrived.
+func TestSendDropped(t *testing.T) {
+	cfg := fakeKSeF(t, 200, 200)
+	fakeDropsSend = true
+	_, err := sendInvoice(cfg, writeInvoice(t, sampleInvoice))
+	if err == nil || !strings.Contains(err.Error(), "may have reached KSeF") {
+		t.Errorf("want a may-have-arrived error, got %v", err)
+	}
+}
+
 // Anything that is not an FA invoice is refused before any request is made.
 func TestSendNotAnInvoice(t *testing.T) {
 	for _, content := range []string{"not xml", "<Faktura/>", `<a><b>1</b></a>`} {
