@@ -1,6 +1,6 @@
 ---
 title: "The init, selfcheck, send, list and pull commands"
-description: "The ksef commands: init, selfcheck, send, list, pull and version. What they print, when send refuses to submit, what Offline mode means in the list, exit codes."
+description: "The ksef commands: init, selfcheck, send, status, list, pull and version. What they print, when send refuses to submit, Offline mode in the list, exit codes."
 ---
 
 # Commands
@@ -35,6 +35,7 @@ Sending invoice.xml to KSeF (env=test)...
   buyer:   Beispiel GmbH, VAT DE123456789
   total:   1200.00 EUR at 4.2137
   payment: due 2026-02-15
+  session: 20260201-SO-0123456789-0123456789-AB
   UPO:     invoice.upo.xml
   verify:  https://qr-test.ksef.mf.gov.pl/invoice/1234567890/01-02-2026/...
 ```
@@ -42,19 +43,37 @@ Sending invoice.xml to KSeF (env=test)...
 - A file that is not an FA invoice is refused before connecting to KSeF.
 - The form code (e.g. `FA (3)`, `1-0E`) comes from the invoice itself.
 - The UPO is saved next to the invoice as `INVOICE.upo.xml`.
+- `ksef status` takes the session number from this output.
 - If the UPO file already exists, `send` refuses to submit. The invoice
   looks already sent.
 - If KSeF considers the invoice a duplicate, the message gives the KSeF
   number of the original.
 - If KSeF does not finish within a minute, or the status cannot be read,
-  `send` gives the session and invoice numbers. Do not submit it again. Check
-  later with `ksef list`.
+  `send` gives the session number. Do not submit it again. Check
+  later with `ksef status SESSION`.
 - If the connection drops at the moment of submission, the invoice may have
-  reached KSeF. Check `ksef list` before submitting it again.
+  reached KSeF. Check `ksef status SESSION` before submitting it again.
+- When KSeF does not answer a login, every command tries up to three times.
 
-## `ksef list [YEAR]`
+## `ksef status SESSION [UPO_FILE]`
 
-Shows the invoices issued in the given year with you as the seller, oldest
+Shows what became of an invoice when `send` ended before KSeF answered. The
+message from `send` gives the session number.
+
+```
+[  OK  ] FV/2026/02/1 accepted, KSeF number 1234567890-20260201-0123456789AB-CD
+  UPO:     invoice.upo.xml
+```
+
+- Invoice accepted: with `UPO_FILE` the command saves the UPO. It does not
+  overwrite an existing file.
+- Invoice still processing or rejected: the command ends with an error and
+  gives the reason.
+- Session without an invoice: the invoice did not reach KSeF.
+
+## `ksef list [--received] [YEAR|YYYY-MM]`
+
+Shows the invoices issued in the given year or month with you as the seller, oldest
 first: date, invoice number, gross amount, buyer, mode, KSeF number. Without
 an argument it takes the current year.
 
@@ -67,6 +86,10 @@ DATE        NUMBER              GROSS  BUYER          MODE     KSEF NUMBER
 
 The mode is assigned by KSeF. `Offline` means the invoice reached KSeF later
 than the day it is dated.
+
+With `--received` it shows the invoices issued to you, and the `BUYER` column
+becomes `SELLER`. A month (`ksef list 2026-11`) is one query to KSeF, a year
+up to four. KSeF takes 20 such queries per hour.
 
 ## `ksef pull KSEF_NUMBER [FILE]`
 

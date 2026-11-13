@@ -4,6 +4,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"os"
 	"strconv"
 	"time"
 )
@@ -23,11 +26,29 @@ var (
 	pollAttempts = 60
 )
 
-// authenticate exchanges the KSeF token for a short-lived access token:
+const loginAttempts = 3
+
+// authenticate logs in, trying again when KSeF does not answer. Nothing has
+// been sent at that point, so a retry is safe.
+func authenticate(cfg *Config) (string, error) {
+	for try := 1; ; try++ {
+		token, err := login(cfg)
+		var netErr net.Error
+		unanswered := errors.As(err, &netErr) || errors.Is(err, io.ErrUnexpectedEOF)
+		if err == nil || !unanswered || try == loginAttempts {
+			return token, err
+		}
+		fmt.Fprintf(os.Stderr, "%s KSeF did not answer (%v) - trying again, %d of %d\n",
+			paint(os.Stderr, yellow, "[ WARN ]"), err, try+1, loginAttempts)
+		time.Sleep(pollInterval)
+	}
+}
+
+// login exchanges the KSeF token for a short-lived access token:
 // challenge, encrypted token submit, status poll, redeem.
 //
-// TODO: consider cachin in cfg.CacheDir if it's too slow
-func authenticate(cfg *Config) (string, error) {
+// TODO: consider caching in cfg.CacheDir if it's too slow
+func login(cfg *Config) (string, error) {
 	if cfg.NIP == "" || cfg.Token == "" {
 		return "", errors.New("nip and ksef_token (or $KSEF_TOKEN) must be set")
 	}

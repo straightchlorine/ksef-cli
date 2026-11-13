@@ -77,8 +77,68 @@ func TestLineSums(t *testing.T) {
 		}
 	}
 	inv := Invoice{Lines: []Line{{Quantity: 1, UnitPrice: 0.1}, {Quantity: 1, UnitPrice: 0.2}}}
-	if inv.Total() != "0.30" {
-		t.Errorf("total %s", inv.Total())
+	if inv.Net() != "0.30" || inv.Gross() != "0.30" {
+		t.Errorf("net %s, gross %s", inv.Net(), inv.Gross())
+	}
+}
+
+// An invoice with VAT: net prices, VAT on their sum, gross total. The numbers
+// are those of the official FA(3) sample invoice.
+func TestInvoiceVAT(t *testing.T) {
+	inv := &Invoice{
+		Number: "FV/1", Currency: "PLN", Issued: "2026-03-01", VATRate: 23,
+		Seller: Party{Name: "S", Addr1: "A 1", NIP: "1234563218"},
+		Buyer:  Party{Name: "B", Addr1: "B 2", NIP: "9999999999"},
+		Lines: []Line{{Name: "Energia", Unit: "kWh", Quantity: 20, UnitPrice: 0.90},
+			{Name: "Dystrybucja", Quantity: 1, UnitPrice: 25.60}},
+		DeclaredTotal: 53.628, // unrounded, as Invoify may carry it
+	}
+	if err := inv.normalise(); err != nil {
+		t.Fatal(err)
+	}
+	if err := inv.validate(); err != nil {
+		t.Fatal(err)
+	}
+	out, err := inv.render(testNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"<P_13_1>43.60</P_13_1>\n    <P_14_1>10.03</P_14_1>\n    <P_15>53.63</P_15>",
+		"<Zwolnienie>\n        <P_19N>1</P_19N>\n      </Zwolnienie>",
+		"<P_8B>20</P_8B>\n      <P_9A>0.90</P_9A>\n      <P_11>18.00</P_11>\n      <P_12>23</P_12>",
+	} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("missing %s\n%s", want, out)
+		}
+	}
+	for _, unwanted := range []string{"P_13_7", "P_19A", "P_9B", "P_11A", ">zw<"} {
+		if strings.Contains(string(out), unwanted) {
+			t.Errorf("an invoice with VAT should not have %s", unwanted)
+		}
+	}
+}
+
+// Each rate has its own pair of total fields; VAT is rounded half up.
+func TestVATTotals(t *testing.T) {
+	for _, tc := range []struct {
+		rate       int
+		net        float64
+		bucket     int
+		vat, gross string
+	}{
+		{23, 1200, 1, "276.00", "1476.00"},
+		{8, 100, 2, "8.00", "108.00"},
+		{5, 19.99, 3, "1.00", "20.99"},
+		{23, 0.50, 1, "0.12", "0.62"}, // 0.115 rounds up
+		{23, 0.02, 1, "0.00", "0.02"}, // 0.0046 rounds down
+		{0, 100, 0, "0.00", "100.00"},
+	} {
+		inv := Invoice{VATRate: tc.rate, Lines: []Line{{Quantity: 1, UnitPrice: tc.net}}}
+		if inv.VATBucket() != tc.bucket || inv.VAT() != tc.vat || inv.Gross() != tc.gross {
+			t.Errorf("%d%% of %v: bucket %d, VAT %s, gross %s", tc.rate, tc.net,
+				inv.VATBucket(), inv.VAT(), inv.Gross())
+		}
 	}
 }
 
@@ -166,6 +226,10 @@ func TestInvoiceValidate(t *testing.T) {
 		"infinite price":    func(i *Invoice) { i.Lines[0].UnitPrice = math.Inf(1) },
 		"vanishing line":    func(i *Invoice) { i.Lines[0].Quantity = 0.0000001 },
 		"NaN total":         func(i *Invoice) { i.DeclaredTotal = math.NaN() },
+		"odd VAT rate":      func(i *Invoice) { i.VATRate = 7 },
+		"VAT in euro":       func(i *Invoice) { i.VATRate, i.Currency, i.Rate = 23, "EUR", "4.2" },
+		"VAT and exemption": func(i *Invoice) { i.VATRate, i.Exemption = 23, "art. 43" },
+		"total without VAT": func(i *Invoice) { i.VATRate, i.DeclaredTotal = 23, 10 },
 		"bad seller NIP":    func(i *Invoice) { i.Seller.NIP = "1234567890" },
 		"letters in NIP":    func(i *Invoice) { i.Buyer.NIP = "SK2020123456" },
 		"PL VAT, bad NIP":   func(i *Invoice) { i.Buyer.NIP, i.Buyer.VAT = "", "PLABCDEFGHIJ" },

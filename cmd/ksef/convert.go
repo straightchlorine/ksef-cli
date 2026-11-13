@@ -6,7 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -18,7 +21,8 @@ var nbpURL = "https://api.nbp.pl/api/exchangerates/rates/a"
 type convertOpts struct {
 	SaleDate, Rate, RateDate, BuyerCountry, BuyerID, Unit, Exemption string
 	Paid                                                             bool
-	PaidDate, DueDate, Place                                         string
+	PaidDate, DueDate, Place, Payment                                string
+	Send                                                             bool
 }
 
 // nbpRate is the NBP table A mid rate on date, or the last one before it.
@@ -106,6 +110,14 @@ func (o convertOpts) apply(inv *Invoice, now time.Time) error {
 	if o.Place != "" {
 		inv.PlaceOfIssue = xmlText(o.Place)
 	}
+	if o.Payment != "" {
+		code, ok := paymentForms[strings.ToLower(o.Payment)]
+		if !ok {
+			return fmt.Errorf("payment %q is not one of: %s", o.Payment,
+				strings.Join(slices.Sorted(maps.Keys(paymentForms)), ", "))
+		}
+		inv.PaymentForm = code
+	}
 	for i := range inv.Lines {
 		if inv.Lines[i].Unit == "" {
 			inv.Lines[i].Unit = xmlText(o.Unit)
@@ -128,6 +140,9 @@ func (o convertOpts) apply(inv *Invoice, now time.Time) error {
 			return err
 		}
 		inv.PaidDate = today
+	}
+	if err := inv.vatProblem(); err != nil {
+		return err // before the NBP lookup below, which a refused invoice does not need
 	}
 	switch {
 	case o.Rate != "" && o.RateDate != "":
@@ -154,8 +169,8 @@ func (o convertOpts) apply(inv *Invoice, now time.Time) error {
 	return nil
 }
 
-// convertInvoify turns an Invoify export into the FA(3) XML of a VAT-exempt
-// seller: read, normalise, apply the options, check, render.
+// convertInvoify turns an Invoify export into FA(3) XML: read, normalise,
+// apply the options, check, render.
 func convertInvoify(in []byte, o convertOpts, now time.Time) ([]byte, error) {
 	inv, err := fromInvoify(in)
 	if err != nil {
@@ -206,6 +221,8 @@ func cmdConvert(args []string) error {
 	fs.StringVar(&o.PaidDate, "paid-date", "", "")
 	fs.StringVar(&o.DueDate, "due-date", "", "")
 	fs.StringVar(&o.Place, "place", "", "")
+	fs.StringVar(&o.Payment, "payment", "", "")
+	fs.BoolVar(&o.Send, "send", false, "")
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
@@ -227,8 +244,19 @@ func cmdConvert(args []string) error {
 			return fmt.Errorf("options go before the files, got %q after them", f)
 		}
 	}
+	if o.Send && len(files) == 1 {
+		// send needs a file: the invoice goes next to its source
+		files = append(files, strings.TrimSuffix(files[0], filepath.Ext(files[0]))+".xml")
+	}
 	if len(files) == 2 && files[0] == files[1] {
-		return errors.New("OUT.xml is the same file as INVOICE")
+		return errors.New("OUT.xml is the same file as INVOICE - name another OUT.xml")
+	}
+	if len(files) == 2 {
+		// the file KSeF holds must stay as it was sent
+		if _, err := os.Stat(upoPathOf(files[1])); err == nil {
+			return fmt.Errorf("%s was already sent (%s exists) - convert to another file",
+				files[1], upoPathOf(files[1]))
+		}
 	}
 	in, err := os.ReadFile(files[0])
 	if err != nil {
@@ -250,8 +278,20 @@ func cmdConvert(args []string) error {
 		for _, n := range notes {
 			field(os.Stdout, n[0], n[1])
 		}
-		fmt.Println(paint(os.Stdout, dim, "Review it, then: ksef send "+files[1]))
-		return nil
+		if !o.Send {
+			fmt.Println(paint(os.Stdout, dim, "Review it, then: ksef send "+files[1]+
+				"  (convert --send does both)"))
+			return nil
+		}
+		yes, err := confirm("Send it to KSeF (" + envTag(os.Stdout, cfg.Env) + ")?")
+		if err != nil {
+			return fmt.Errorf("%w - not sent; send it with: ksef send %s", err, files[1])
+		}
+		if !yes {
+			fmt.Println("Not sent. Send it later with: ksef send " + files[1])
+			return nil
+		}
+		return sendAndReport(cfg, files[1], false)
 	}
 	return showInvoice(out, "converted "+files[0], notes)
 }

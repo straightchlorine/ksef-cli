@@ -7,10 +7,9 @@ description: "Czego ksef-cli nie robi, jak ułożony jest kod i jak uruchomić t
 
 ## Czego narzędzie nie robi
 
-- Nie tworzy faktur od zera. `convert` zamienia tylko eksport z Invoify,
-  i tylko dla sprzedawców zwolnionych z VAT.
+- Nie tworzy faktur od zera. `convert` zamienia tylko eksport z Invoify:
+  fakturę zwolnioną z VAT albo z jedną stawką 23, 8 lub 5%.
 - Nie sprawdza faktury względem schematu XSD. Robi to KSeF przy wysyłce.
-- Nie pokazuje faktur zakupowych, tylko wystawione.
 - Nie obsługuje logowania certyfikatem (XAdES) ani sesji wsadowych.
 
 ## Rozwój

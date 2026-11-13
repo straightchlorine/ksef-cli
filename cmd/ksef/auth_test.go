@@ -11,18 +11,31 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
 )
 
-// Faults the fake server injects into a send: the invoice request is dropped
-// without an answer, or the status call fails this many times.
+// Faults the fake server injects: the invoice request is dropped without an
+// answer, the status call fails this many times, the first logins get no
+// answer, the session holds no invoice. fakeQueries counts metadata queries.
 var (
 	fakeDropsSend      bool
 	fakeUPOFails       bool
+	fakeSessionEmpty   bool
 	fakeStatusFailures int
+	fakeLoginDrops     int
+	fakeQueries        int
+	// the invoice a send must carry; empty for any
+	fakeInvoice = sampleInvoice
 )
+
+// hangUp takes the request and cuts the line without answering.
+func hangUp(w http.ResponseWriter) {
+	conn, _, _ := w.(http.Hijacker).Hijack()
+	conn.Close()
+}
 
 // fakeKSeF serves the auth and send endpoints the way the real API does and
 // fails the test when a request is malformed. authCode and invoiceCode are the
@@ -71,6 +84,11 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		}})
 	})
 	on("POST /auth/challenge", "", func(w http.ResponseWriter, _ *http.Request) {
+		if fakeLoginDrops > 0 {
+			fakeLoginDrops--
+			hangUp(w)
+			return
+		}
 		reply(w, 200, map[string]any{"challenge": "chal-1", "timestampMs": 1700000000123})
 	})
 	on("POST /auth/ksef-token", "", func(w http.ResponseWriter, r *http.Request) {
@@ -129,14 +147,12 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		}
 		aesKey = k
 		aesIV, _ = base64.StdEncoding.DecodeString(req.Encryption.InitializationVector)
-		reply(w, 201, map[string]string{"referenceNumber": "sess-1"})
+		reply(w, 201, map[string]string{"referenceNumber": "20260301-SO-0000000001-0000000001-AA"})
 	})
-	invoices := "/sessions/online/sess-1/invoices"
+	invoices := "/sessions/online/20260301-SO-0000000001-0000000001-AA/invoices"
 	on("POST "+invoices, "access-token", func(w http.ResponseWriter, r *http.Request) {
 		if fakeDropsSend {
-			// take the request, then cut the line without answering
-			conn, _, _ := w.(http.Hijacker).Hijack()
-			conn.Close()
+			hangUp(w)
 			return
 		}
 		var req struct {
@@ -148,17 +164,17 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		}
 		ct, _ := base64.StdEncoding.DecodeString(req.EncryptedInvoiceContent)
 		plain, err := aesDecrypt(aesKey, aesIV, ct)
-		if err != nil || string(plain) != sampleInvoice ||
+		if err != nil || fakeInvoice != "" && string(plain) != fakeInvoice ||
 			sha256B64(plain) != req.InvoiceHash || len(plain) != req.InvoiceSize ||
 			sha256B64(ct) != req.EncryptedInvoiceHash || len(ct) != req.EncryptedInvoiceSize {
 			t.Errorf("invoice content, hashes or sizes are off (decrypt err %v)", err)
 		}
 		reply(w, 202, map[string]string{"referenceNumber": "inv-1"})
 	})
-	on("POST /sessions/online/sess-1/close", "access-token",
+	on("POST /sessions/online/20260301-SO-0000000001-0000000001-AA/close", "access-token",
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	invoicePolls := 0
-	sentInvoice := "GET /sessions/sess-1/invoices/inv-1"
+	sentInvoice := "GET /sessions/20260301-SO-0000000001-0000000001-AA/invoices/inv-1"
 	on(sentInvoice, "access-token", func(w http.ResponseWriter, _ *http.Request) {
 		if fakeStatusFailures > 0 {
 			fakeStatusFailures--
@@ -182,6 +198,22 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		w.Write([]byte("<upo/>"))
 	})
 
+	// what `ksef status` reads: the session's invoices, or the session itself
+	sessionInvoices := "GET /sessions/20260301-SO-0000000001-0000000001-AA/invoices"
+	on(sessionInvoices, "access-token", func(w http.ResponseWriter, _ *http.Request) {
+		invoices := []invoiceState{}
+		if !fakeSessionEmpty {
+			invoices = append(invoices, invoiceState{
+				ReferenceNumber: "inv-1", InvoiceNumber: "FV/1", KsefNumber: "KSEF-NUMBER-1",
+				Status: statusInfo{Code: invoiceCode, Description: "desc"}})
+		}
+		reply(w, 200, map[string]any{"invoices": invoices})
+	})
+	sessionItself := "GET /sessions/20260301-SO-0000000001-0000000001-AA"
+	on(sessionItself, "access-token", func(w http.ResponseWriter, _ *http.Request) {
+		reply(w, 200, map[string]any{"status": statusInfo{Code: 440, Description: "Sesja anulowana"}})
+	})
+
 	// Two pages in the first quarter, nothing in the rest.
 	on("POST /invoices/query/metadata", "access-token", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -193,7 +225,10 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		}
 		from, _ := time.Parse(time.RFC3339, req.DateRange.From)
 		to, err := time.Parse(time.RFC3339, req.DateRange.To)
-		if req.SubjectType != "Subject1" || req.DateRange.DateType != "Issue" || err != nil ||
+		fakeQueries++
+		received := req.SubjectType == "Subject2"
+		if !received && req.SubjectType != "Subject1" ||
+			req.DateRange.DateType != "Issue" || err != nil ||
 			!to.After(from) || to.After(from.AddDate(0, 3, 0)) {
 			t.Errorf("metadata query: %+v", req)
 		}
@@ -205,11 +240,15 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 				"ksefNumber": "KSEF-NUMBER-" + page, "invoiceNumber": "FV/" + page,
 				"issueDate": "2025-01-1" + page, "grossAmount": 100.50, "currency": "PLN",
 				"buyer": map[string]string{"name": "Buyer"}, "invoicingMode": "Offline",
+				"seller": map[string]string{"name": "Seller"},
 			}}
+			if received {
+				resp["invoices"].([]map[string]any)[0]["invoiceNumber"] = "IN/" + page
+			}
 		}
 		reply(w, 200, resp)
 	})
-	stored := "GET /invoices/ksef/KSEF-NUMBER-1"
+	stored := "GET /invoices/ksef/1234563218-20260301-0123456789AB-CD"
 	on(stored, "access-token", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(sampleInvoice))
 	})
@@ -222,7 +261,9 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		srv.Close()
 		delete(baseURLs, "fake")
 		pollInterval = oldInterval
-		fakeDropsSend, fakeUPOFails, fakeStatusFailures = false, false, 0
+		fakeDropsSend, fakeUPOFails, fakeSessionEmpty = false, false, false
+		fakeStatusFailures, fakeLoginDrops, fakeQueries = 0, 0, 0
+		fakeInvoice, stdin = sampleInvoice, os.Stdin
 	})
 	return &Config{Env: "fake", NIP: "1234567890", Token: "secret-token", CacheDir: t.TempDir()}
 }
@@ -242,6 +283,22 @@ func TestAuthenticateRejected(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "450") ||
 		!strings.Contains(err.Error(), "env=fake") {
 		t.Errorf("want a login-rejected error carrying the status code, got %v", err)
+	}
+}
+
+// A login that gets no answer is tried again, three times in all.
+func TestAuthenticateRetries(t *testing.T) {
+	cfg := fakeKSeF(t, 200, 200)
+	fakeLoginDrops = 2
+	if got, err := authenticate(cfg); err != nil || got != "access-token" {
+		t.Errorf("two unanswered logins should be ridden out, got %q, %v", got, err)
+	}
+	fakeLoginDrops = 3
+	if _, err := authenticate(cfg); err == nil {
+		t.Error("three unanswered logins should be an error")
+	}
+	if fakeLoginDrops != 0 {
+		t.Errorf("%d unanswered logins were never tried", fakeLoginDrops)
 	}
 }
 

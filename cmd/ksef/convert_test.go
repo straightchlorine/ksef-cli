@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -186,6 +187,9 @@ func TestConvertSaleAndPaidDates(t *testing.T) {
 			due("2026-03-01"), convertOpts{Paid: true}, "<DataZaplaty>2026-03-02<"},
 		"due date as an option": {
 			due("2026-03-15"), convertOpts{DueDate: "2026-03-20"}, "<Termin>2026-03-20</Termin>"},
+		"payment form": {
+			invoifyJSON(nil), convertOpts{Payment: "Cash"},
+			"<Platnosc>\n      <FormaPlatnosci>1</FormaPlatnosci>\n    </Platnosc>"},
 		"paid on a date": {
 			due("2026-03-15"), convertOpts{PaidDate: "2026-03-05"},
 			"<Zaplacono>1</Zaplacono>\n      <DataZaplaty>2026-03-05<"},
@@ -282,6 +286,98 @@ func TestCmdConvert(t *testing.T) {
 	}
 }
 
+// Invoify's percentage tax becomes the VAT rate: its prices are net and its
+// total is gross.
+func TestConvertVAT(t *testing.T) {
+	withTax := func(tax, total string) []byte {
+		return invoifyJSON(func(s string) string {
+			s = strings.Replace(s, `"taxDetails": {"amount": 0}`, `"taxDetails": `+tax, 1)
+			return strings.Replace(s, `"totalAmount": 250`, `"totalAmount": `+total, 1)
+		})
+	}
+	out, err := convertInvoify(withTax(`{"amount": "23", "amountType": "percentage"}`, "307.5"),
+		convertOpts{}, testNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"<P_13_1>250.00</P_13_1>\n    <P_14_1>57.50</P_14_1>\n    <P_15>307.50</P_15>",
+		"<P_9A>100.50</P_9A>\n      <P_11>201.00</P_11>\n      <P_12>23</P_12>",
+		"<P_19N>1</P_19N>",
+	} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("missing %s\n%s", want, out)
+		}
+	}
+	for name, in := range map[string][]byte{
+		"net total":    withTax(`{"amount": 23, "amountType": "percentage"}`, "250"),
+		"fixed amount": withTax(`{"amount": 57.5, "amountType": "amount"}`, "307.5"),
+		"unknown rate": withTax(`{"amount": 7, "amountType": "percentage"}`, "267.5"),
+		"fraction":     withTax(`{"amount": 8.5, "amountType": "percentage"}`, "271.25"),
+		"foreign money": bytes.Replace(
+			withTax(`{"amount": 23, "amountType": "percentage"}`, "307.5"),
+			[]byte(`"PLN"`), []byte(`"EUR"`), 1),
+	} {
+		if _, err := convertInvoify(in, convertOpts{Rate: ""}, testNow); err == nil {
+			t.Errorf("%s: should be refused", name)
+		}
+	}
+	// an exemption basis from the options does not fit an invoice with VAT
+	in := withTax(`{"amount": 8, "amountType": "percentage"}`, "270")
+	if _, err := convertInvoify(in, convertOpts{Exemption: "art. 43"}, testNow); err == nil {
+		t.Error("VAT with --exemption should be refused")
+	}
+	if out, err := convertInvoify(in, convertOpts{}, testNow); err != nil ||
+		!strings.Contains(string(out), "<P_13_2>250.00</P_13_2>\n    <P_14_2>20.00</P_14_2>") {
+		t.Errorf("8%%: %v\n%s", err, out)
+	}
+}
+
+// convert --send: the invoice is written, shown, and sent only on a yes.
+func TestConvertSend(t *testing.T) {
+	useFake(t, fakeKSeF(t, 200, 200))
+	fakeInvoice = "" // whatever convert wrote
+	dir := t.TempDir()
+	in := filepath.Join(dir, "faktura.json")
+	out, upo := filepath.Join(dir, "faktura.xml"), filepath.Join(dir, "faktura.upo.xml")
+	os.WriteFile(in, invoifyJSON(nil), 0o600)
+	exists := func(p string) bool { _, err := os.Stat(p); return err == nil }
+
+	// no answer at all is an error, and nothing is sent
+	stdin = strings.NewReader("")
+	if err := cmdConvert([]string{"--send", in}); err == nil || exists(upo) {
+		t.Errorf("no answer: err %v, sent %v", err, exists(upo))
+	}
+	// anything but yes: written, not sent, no error
+	for _, answer := range []string{"n\n", "\n", "maybe\n"} {
+		stdin = strings.NewReader(answer)
+		if err := cmdConvert([]string{"--send", in}); err != nil || !exists(out) || exists(upo) {
+			t.Errorf("answer %q: err %v, written %v, sent %v", answer, err, exists(out), exists(upo))
+		}
+	}
+	stdin = strings.NewReader("Y\n")
+	if err := cmdConvert([]string{"--send", in}); err != nil || !exists(upo) {
+		t.Fatalf("answer Y: err %v, sent %v", err, exists(upo))
+	}
+	// the sent file must stay as KSeF has it: no second convert over it
+	before, _ := os.ReadFile(out)
+	for _, args := range [][]string{{"--send", in}, {in, out}} {
+		stdin = strings.NewReader("y\n")
+		if err := cmdConvert(args); err == nil || !strings.Contains(err.Error(), "already sent") {
+			t.Errorf("%v over a sent invoice: %v", args, err)
+		}
+	}
+	if after, _ := os.ReadFile(out); string(after) != string(before) {
+		t.Error("the sent invoice file was changed")
+	}
+	// an .xml source has no default output name
+	xmlIn := filepath.Join(dir, "export.xml")
+	os.WriteFile(xmlIn, []byte("<root/>"), 0o600)
+	if err := cmdConvert([]string{"--send", xmlIn}); err == nil {
+		t.Error("--send on an .xml source without OUT.xml should be refused")
+	}
+}
+
 func TestConvertRefuses(t *testing.T) {
 	replace := func(old, new string) func(string) string {
 		return func(s string) string { return strings.Replace(s, old, new, 1) }
@@ -299,6 +395,7 @@ func TestConvertRefuses(t *testing.T) {
 		"bad sale date":   {nil, convertOpts{SaleDate: "27.02.2026"}},
 		"rate and lookup": {replace(`"PLN"`, `"EUR"`), convertOpts{Rate: "4.2", RateDate: "2026-02-27"}},
 		"bad rate":        {replace(`"PLN"`, `"EUR"`), convertOpts{Rate: "abc"}},
+		"bad payment":     {nil, convertOpts{Payment: "barter"}},
 		"NaN quantity":    {replace(`"quantity": "2"`, `"quantity": "NaN"`), convertOpts{}},
 		"infinite price":  {replace(`"unitPrice": 49`, `"unitPrice": "Inf"`), convertOpts{}},
 		"NaN total":       {replace(`"totalAmount": 250`, `"totalAmount": "NaN"`), convertOpts{}},

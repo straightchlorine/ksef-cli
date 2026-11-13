@@ -31,7 +31,8 @@ func (s xmlText) String() string {
 	return b.String()
 }
 
-// Invoice is an invoice of a VAT-exempt seller, whatever it was read from.
+// Invoice is a VAT-exempt invoice, or one with a single VAT rate, whatever it
+// was read from.
 // A reader fills it, normalise and validate check it, render writes FA(3).
 type Invoice struct {
 	Number, PlaceOfIssue, OrderNumber, Exemption xmlText
@@ -44,9 +45,13 @@ type Invoice struct {
 	Lines                                 []Line
 	DeclaredTotal                         float64 // the source's own total, 0 for none
 	Account, SWIFT, BankName, AccountName xmlText
-	Footer                                xmlText
-	Extras                                []Extra
-	Created                               string // set by render
+	PaymentForm                           string // FA(3) code 1-7, see paymentForms
+	// VATRate is 0 for an exempt invoice, else the one rate of every line.
+	// Prices are then net and VAT is added on top.
+	VATRate int
+	Footer  xmlText
+	Extras  []Extra
+	Created string // set by render
 }
 
 type Party struct {
@@ -115,7 +120,33 @@ func (inv *Invoice) cents() int64 {
 	return t
 }
 
-func (inv *Invoice) Total() string { return centsText(inv.cents()) }
+// vatBuckets maps a VAT rate to its pair of total fields, P_13_n and P_14_n.
+var vatBuckets = map[int]int{23: 1, 8: 2, 5: 3}
+
+// vatCents is the VAT on the sum of the lines, rounded half up.
+func (inv *Invoice) vatCents() int64 {
+	return (inv.cents()*int64(inv.VATRate) + 50) / 100
+}
+
+func (inv *Invoice) Net() string    { return centsText(inv.cents()) }
+func (inv *Invoice) VAT() string    { return centsText(inv.vatCents()) }
+func (inv *Invoice) Gross() string  { return centsText(inv.cents() + inv.vatCents()) }
+func (inv *Invoice) VATBucket() int { return vatBuckets[inv.VATRate] }
+
+// vatProblem says why this invoice cannot carry VAT, if it has any.
+func (inv *Invoice) vatProblem() error {
+	switch {
+	case inv.VATRate == 0:
+		return nil
+	case vatBuckets[inv.VATRate] == 0:
+		return fmt.Errorf("VAT rate %d%% is not supported, only 23, 8 and 5", inv.VATRate)
+	case inv.Currency != "PLN":
+		return errors.New("VAT on a non-PLN invoice is not supported yet")
+	case inv.Exemption != "":
+		return errors.New("an invoice with VAT cannot carry an exemption basis")
+	}
+	return nil
+}
 
 // Descriptions are the line descriptions followed by the extras, each value on
 // one line and long ones split: FA(3) caps a value at 256 characters.
@@ -291,6 +322,21 @@ func (inv *Invoice) normalise() error {
 	return nil
 }
 
+// paymentForms are the FA(3) codes of FormaPlatnosci.
+var paymentForms = map[string]string{
+	"cash": "1", "card": "2", "voucher": "3", "cheque": "4", "credit": "5",
+	"transfer": "6", "mobile": "7",
+}
+
+// Form is the payment form to print: the one set, or a transfer when a bank
+// account is given.
+func (inv *Invoice) Form() string {
+	if inv.PaymentForm == "" && inv.Account != "" {
+		return paymentForms["transfer"]
+	}
+	return inv.PaymentForm
+}
+
 func (inv *Invoice) validate() error {
 	if inv.Number == "" {
 		return errors.New("invoice number missing")
@@ -331,8 +377,16 @@ func (inv *Invoice) validate() error {
 			return fmt.Errorf("item %d comes to nothing: %s x %s", i+1, l.Qty(), l.Price())
 		}
 	}
-	if d := inv.DeclaredTotal; d != 0 && !(math.Abs(float64(inv.cents())/100-d) <= 0.005) {
-		return fmt.Errorf("items add up to %s but the invoice total is %v", inv.Total(), d)
+	if err := inv.vatProblem(); err != nil {
+		return err
+	}
+	// the source may carry its total unrounded, so allow half a grosz and a hair
+	gross := float64(inv.cents()+inv.vatCents()) / 100
+	if d := inv.DeclaredTotal; d != 0 && !(math.Abs(gross-d) <= 0.0051) {
+		return fmt.Errorf("items and VAT add up to %s but the invoice total is %v", inv.Gross(), d)
+	}
+	if f := inv.PaymentForm; f != "" && (len(f) != 1 || f < "1" || f > "7") {
+		return fmt.Errorf("payment form %q is not a code from 1 to 7", f)
 	}
 	if inv.Rate != "" {
 		if inv.Currency == "PLN" {
@@ -349,7 +403,7 @@ func (inv *Invoice) validate() error {
 // render writes the invoice as FA(3) XML. Call normalise and validate first.
 func (inv *Invoice) render(now time.Time) ([]byte, error) {
 	inv.Created = now.UTC().Format("2006-01-02T15:04:05Z")
-	if inv.Exemption == "" {
+	if inv.Exemption == "" && inv.VATRate == 0 {
 		inv.Exemption = defaultExemption
 	}
 	inc := template.FuncMap{"inc": func(i int) int { return i + 1 }}

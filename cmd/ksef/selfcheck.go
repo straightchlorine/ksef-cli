@@ -65,11 +65,13 @@ func cmdSelfcheck() error {
 
 	if cfg.Token == "" {
 		fmt.Println(paint(os.Stdout, cyan, "[ SKIP ]"), "KSeF login - no token configured")
+		hint("Set it with: export KSEF_TOKEN='...'")
 		return nil
 	}
 	if _, err := authenticate(cfg); err != nil {
 		return fmt.Errorf("KSeF login: %w", err)
 	}
 	fmt.Printf("%s KSeF login (%s, nip=%s)\n", ok, envTag(os.Stdout, cfg.Env), cfg.NIP)
+	hint("Ready. Next: ksef send FILE.xml, or ksef convert --send INVOICE.json")
 	return nil
 }

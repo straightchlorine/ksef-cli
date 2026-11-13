@@ -15,7 +15,8 @@ const usage = `Usage: ksef init [test|demo|prod]
        ksef selfcheck
        ksef convert [OPTIONS] INVOICE [OUT.xml]
        ksef send FILE.xml
-       ksef list [YEAR]
+       ksef status SESSION [UPO_FILE]
+       ksef list [--received] [YEAR|YYYY-MM]
        ksef pull KSEF_NUMBER [OUT_FILE]
        ksef version
        ksef -h
@@ -26,14 +27,16 @@ Subcommands:
               $KSEF_TOKEN when the token carries it.
   selfcheck   Checks the setup: AES/RSA crypto round-trip, KSeF's live
               published public key and, when a token is configured, a login.
-  convert     Turn an Invoify JSON or XML export into an FA(3) XML of a VAT-exempt
-              seller (art. 113), to stdout or OUT.xml. Read from the invoice:
+  convert     Turn an Invoify JSON or XML export into an FA(3) XML, to stdout
+              or OUT.xml. The invoice is VAT-exempt (art. 113) unless Invoify
+              has a percentage tax of 23, 8 or 5: then its prices are net and
+              VAT is added on top (PLN only). Read from the invoice:
               the seller's NIP (custom field NIP), the buyer's id (custom
               field NIP, VAT or NrID), the buyer's country and a SWIFT code
               (sender's custom field SWIFT). Item descriptions, payment terms,
-              the order number and any other custom field are carried over. A non-PLN
-              invoice gets NBP's rate from the last working day before the
-              invoice date. Options, all before the files:
+              the order number and any other custom field are carried over. A
+              non-PLN invoice gets NBP's rate from the last working day before
+              the invoice date. Options, all before the files:
                 --sale-date DATE      sale date (P_6), when it differs from the
                                       invoice date; prev-month-end for the last
                                       day of the month before it
@@ -41,8 +44,13 @@ Subcommands:
                 --paid-date DATE      mark as paid on DATE
                 --due-date DATE       payment due date, instead of the invoice's
                 --place TEXT          place of issue
+                --send                after converting, ask and then send
+                                      (OUT.xml defaults to INVOICE's name)
+                --payment FORM        cash, card, transfer, mobile, cheque,
+                                      credit or voucher (default: transfer
+                                      when the invoice has a bank account)
                 --rate N              exchange rate, instead of NBP's
-                --rate-date DATE      NBP's rate for that day, or the last before
+                --rate-date DATE      NBP's rate for that day or the last before
                 --buyer-country XX    when the country is not recognised
                 --buyer-id TEXT       buyer's foreign tax or register number
                 --unit TEXT           unit of measure for every line
@@ -50,10 +58,14 @@ Subcommands:
                 --exemption TEXT      legal basis (default: art. 113 ust. 1)
   send        Send a ready FA XML invoice and wait until KSeF accepts it.
               Saves the UPO receipt next to it as FILE.upo.xml and prints the
-              KSeF number and a public verification link.
+              KSeF number, the session and a public verification link.
+  status      Show what became of an invoice when send ended before KSeF
+              gave its verdict; send prints the SESSION to use. With UPO_FILE
+              it saves the receipt of an accepted invoice.
   list        List the invoices KSeF holds with you as the seller, issued in
-              YEAR (default: this year), with the mode KSeF recorded: Offline
-              when an invoice arrived after the day it is dated.
+              a year or a month (default: this year), with the mode KSeF
+              recorded: Offline when an invoice arrived after the day it is
+              dated. --received lists the ones issued to you instead.
   pull        Fetch an invoice as KSeF stored it, to stdout or OUT_FILE.
   version     Print version.
 
@@ -83,6 +95,8 @@ func main() {
 		err = cmdConvert(os.Args[2:])
 	case "send":
 		err = cmdSend(os.Args[2:])
+	case "status":
+		err = cmdStatus(os.Args[2:])
 	case "list":
 		err = cmdList(os.Args[2:])
 	case "pull":

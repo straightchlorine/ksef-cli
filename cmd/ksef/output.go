@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -90,6 +94,50 @@ func showInvoice(invoice []byte, status string, notes [][2]string) error {
 	return nil
 }
 
+// stdin is where confirm reads its answer; tests replace it.
+var stdin io.Reader = os.Stdin
+
+// confirm asks a yes/no question and reads one line. Only y or yes is a yes.
+// No answer at all (stdin closed, not a terminal) is an error, not a no, so a
+// script never mistakes "not sent" for success.
+func confirm(question string) (bool, error) {
+	fmt.Printf("%s [y/N] ", question)
+	answer, err := bufio.NewReader(stdin).ReadString('\n')
+	if err != nil && answer == "" {
+		fmt.Println()
+		return false, errors.New("no answer to the question above")
+	}
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "y" || answer == "yes", nil
+}
+
+// hint prints a dimmed next-step line, on a terminal only.
+func hint(text string) {
+	if isTerminal(os.Stdout) {
+		fmt.Println(paint(os.Stdout, dim, text))
+	}
+}
+
+var (
+	isKsefNumber = regexp.MustCompile(`^\d{10}-\d{8}-[0-9A-F]{6}-?[0-9A-F]{6}-[0-9A-F]{2}$`)
+	isReference  = regexp.MustCompile(`^[0-9A-Z-]{36}$`)
+)
+
+// The form of each id, in counting digits so it is plainly not a real one.
+const (
+	ksefNumberForm = "1234567890-12345678-123456789012-12"
+	referenceForm  = "12345678-SO-1234567890-1234567890-12"
+)
+
+// wantShape refuses an argument that cannot be the id it stands for, before
+// any request is made: typically a placeholder typed as it stands.
+func wantShape(what, got string, shape *regexp.Regexp, form, source string) error {
+	if shape.MatchString(got) {
+		return nil
+	}
+	return fmt.Errorf("%q is not a %s, which has the form %s - %s", got, what, form, source)
+}
+
 // envTag is "env=prod", loud for production where invoices are legally binding.
 func envTag(w *os.File, env string) string {
 	if env == "prod" {
@@ -149,14 +197,27 @@ func printSummary(w *os.File, h *invoiceHead) {
 			break
 		}
 		price := joined(" x ", joined(" ", l.Quantity, l.Unit), l.Price+l.NetPrice)
-		field(w, "item", joined(", ", l.Name, price))
+		vat := ""
+		if _, err := strconv.Atoi(l.VATRate); err == nil {
+			vat = "net + " + l.VATRate + "% VAT"
+		}
+		field(w, "item", joined(", ", l.Name, price, vat))
 	}
 	rate := ""
 	if len(h.Lines) > 0 {
 		rate = h.Lines[0].Rate
 	}
-	field(w, "total", joined(" ", h.Total, h.Currency, prefixed("at ", rate)))
-	field(w, "payment", joined(", ", prefixed("due ", h.DueDate), prefixed("paid ", h.PaidDate)))
+	total := joined(" ", h.Total, h.Currency, prefixed("at ", rate))
+	vat := joined(" + ", h.VAT1, h.VAT2, h.VAT3)
+	field(w, "total", joined(", ", total, prefixed("of which VAT ", vat)))
+	form := ""
+	for name, code := range paymentForms {
+		if code == h.PayForm {
+			form = name
+		}
+	}
+	field(w, "payment", joined(", ", form, prefixed("due ", h.DueDate),
+		prefixed("paid ", h.PaidDate)))
 	field(w, "order", h.Order)
 	field(w, "extra", strings.Join(slices.Compact(slices.Clone(h.Extras)), ", "))
 }

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -17,24 +18,31 @@ type invoiceMeta struct {
 	GrossAmount   json.Number `json:"grossAmount"`
 	Currency      string      `json:"currency"`
 	InvoicingMode string      `json:"invoicingMode"` // Online | Offline
-	Buyer         struct {
+	Seller        struct {
+		Name string `json:"name"`
+	} `json:"seller"`
+	Buyer struct {
 		Name string `json:"name"`
 	} `json:"buyer"`
 }
 
-// listInvoices returns the invoices issued in year with cfg.NIP as the seller,
-// oldest first. Asks quater by quater.
-func listInvoices(cfg *Config, year int, now time.Time) ([]invoiceMeta, error) {
+// listInvoices returns the invoices issued from `from` up to `to` with cfg.NIP
+// as the seller, or as the buyer when received is set, oldest first.
+// KSeF takes at most 3 months per query, so it asks in chunks.
+func listInvoices(cfg *Config, received bool, from, to, now time.Time) ([]invoiceMeta, error) {
 	access, err := authenticate(cfg)
 	if err != nil {
 		return nil, err
 	}
+	subject := "Subject1"
+	if received {
+		subject = "Subject2"
+	}
 	var all []invoiceMeta
-	for q := 0; q < 4; q++ {
-		from := time.Date(year, time.Month(1+3*q), 1, 0, 0, 0, 0, time.UTC)
-		to := from.AddDate(0, 3, 0).Add(-time.Second)
-		if from.After(now) {
-			break
+	for start := from; start.Before(to) && !start.After(now); start = start.AddDate(0, 3, 0) {
+		end := start.AddDate(0, 3, 0)
+		if end.After(to) {
+			end = to
 		}
 		for page := 0; ; page++ {
 			var resp struct {
@@ -45,11 +53,11 @@ func listInvoices(cfg *Config, year int, now time.Time) ([]invoiceMeta, error) {
 			u := fmt.Sprintf("%s/invoices/query/metadata?sortOrder=Asc&pageSize=250&pageOffset=%d",
 				baseURLs[cfg.Env], page)
 			err := apiJSON("POST", u, access, map[string]any{
-				"subjectType": "Subject1",
+				"subjectType": subject,
 				"dateRange": map[string]string{
 					"dateType": "Issue",
-					"from":     from.Format(time.RFC3339),
-					"to":       to.Format(time.RFC3339),
+					"from":     start.Format(time.RFC3339),
+					"to":       end.Add(-time.Second).Format(time.RFC3339),
 				},
 			}, &resp)
 			if err != nil {
@@ -61,7 +69,7 @@ func listInvoices(cfg *Config, year int, now time.Time) ([]invoiceMeta, error) {
 				fmt.Fprintln(
 					os.Stderr,
 					paint(os.Stderr, yellow, "[ WARN ]"),
-					"over 10000 invoices in one quarter, list is cut short",
+					"over 10000 invoices in one query, list is cut short",
 				)
 				break
 			}
@@ -73,49 +81,88 @@ func listInvoices(cfg *Config, year int, now time.Time) ([]invoiceMeta, error) {
 	return all, nil
 }
 
+// parsePeriod reads YEAR or YYYY-MM as a time range; empty means this year.
+func parsePeriod(s string, now time.Time) (from, to time.Time, err error) {
+	if s == "" {
+		s = strconv.Itoa(now.Year())
+	}
+	if t, e := time.Parse("2006-01", s); e == nil {
+		from, to = t, t.AddDate(0, 1, 0)
+	} else if t, e := time.Parse("2006", s); e == nil {
+		from, to = t, t.AddDate(1, 0, 0)
+	} else {
+		return from, to, fmt.Errorf("want YEAR or YYYY-MM, got %q", s)
+	}
+	if from.Year() < 2000 || from.After(now) {
+		return from, to, fmt.Errorf("%s is not between 2000 and %s", s, now.Format("2006-01"))
+	}
+	return from, to, nil
+}
+
 func cmdList(args []string) error {
 	now := time.Now().UTC()
-	year := now.Year()
-	if len(args) > 1 {
-		return errors.New("list takes at most one YEAR")
-	}
-	if len(args) == 1 {
-		y, err := strconv.Atoi(args[0])
-		if err != nil || y < 2000 || y > now.Year() {
-			return fmt.Errorf("YEAR must be between 2000 and %d, got %q", now.Year(), args[0])
+	received, when := false, ""
+	for _, a := range args {
+		switch {
+		case a == "--received":
+			received = true
+		case when == "" && !strings.HasPrefix(a, "-"):
+			when = a
+		default:
+			return fmt.Errorf("list takes --received and one YEAR or YYYY-MM, got %q", a)
 		}
-		year = y
+	}
+	from, to, err := parsePeriod(when, now)
+	if err != nil {
+		return err
 	}
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
-	invoices, err := listInvoices(cfg, year, now)
+	invoices, err := listInvoices(cfg, received, from, to, now)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Invoices issued by %s in %d (%s): %d\n", cfg.NIP, year,
+	what, period := "issued by", from.Format("2006")
+	if received {
+		what = "received by"
+	}
+	if to.Equal(from.AddDate(0, 1, 0)) {
+		period = from.Format("2006-01")
+	}
+	fmt.Printf("Invoices %s %s in %s (%s): %d\n", what, cfg.NIP, period,
 		envTag(os.Stdout, cfg.Env), len(invoices))
 	if len(invoices) > 0 {
-		printList(os.Stdout, invoices)
+		printList(os.Stdout, invoices, received)
+		last := invoices[len(invoices)-1].KsefNumber
+		hint("Fetch one with: ksef pull " + last + " [FILE.xml]")
 	}
 	return nil
 }
 
 // printList prints the invoices as a table, with late arrivals standing out.
-func printList(w *os.File, invoices []invoiceMeta) {
-	rows := [][]string{{"DATE", "NUMBER", "GROSS", "BUYER", "MODE", "KSEF NUMBER"}}
+// The other party is the buyer, or the seller for received invoices.
+func printList(w *os.File, invoices []invoiceMeta, received bool) {
+	party := "BUYER"
+	if received {
+		party = "SELLER"
+	}
+	rows := [][]string{{"DATE", "NUMBER", "GROSS", party, "MODE", "KSEF NUMBER"}}
 	for _, inv := range invoices {
 		gross := inv.GrossAmount.String()
 		if f, err := inv.GrossAmount.Float64(); err == nil {
 			gross = strconv.FormatFloat(f, 'f', 2, 64)
 		}
-		buyer := []rune(inv.Buyer.Name)
-		if len(buyer) > 32 {
-			buyer = append(buyer[:31], '…')
+		name := []rune(inv.Buyer.Name)
+		if received {
+			name = []rune(inv.Seller.Name)
+		}
+		if len(name) > 32 {
+			name = append(name[:31], '…')
 		}
 		rows = append(rows, []string{inv.IssueDate, inv.InvoiceNumber,
-			gross + " " + inv.Currency, string(buyer), inv.InvoicingMode, inv.KsefNumber})
+			gross + " " + inv.Currency, string(name), inv.InvoicingMode, inv.KsefNumber})
 	}
 	printTable(w, rows, 2, func(row, col int) string {
 		switch {
@@ -136,6 +183,10 @@ func printList(w *os.File, invoices []invoiceMeta) {
 func cmdPull(args []string) error {
 	if len(args) < 1 || len(args) > 2 {
 		return errors.New("pull needs KSEF_NUMBER and an optional OUT_FILE")
+	}
+	if err := wantShape("KSeF number", args[0], isKsefNumber,
+		ksefNumberForm, "ksef list shows yours"); err != nil {
+		return err
 	}
 	cfg, err := loadConfig()
 	if err != nil {

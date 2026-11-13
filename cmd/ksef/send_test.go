@@ -79,7 +79,7 @@ func TestSendStatusTrouble(t *testing.T) {
 	path := writeInvoice(t, sampleInvoice)
 	_, err = sendInvoice(cfg, path)
 	if err == nil || !strings.Contains(err.Error(), "do not resend") ||
-		!strings.Contains(err.Error(), "sess-1") {
+		!strings.Contains(err.Error(), "20260301-SO-0000000001-0000000001-AA") {
 		t.Errorf("want a do-not-resend error naming the session, got %v", err)
 	}
 }

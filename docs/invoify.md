@@ -1,6 +1,6 @@
 ---
 title: "Konwersja faktury z Invoify na XML FA(3)"
-description: "ksef convert zamienia eksport JSON lub XML z Invoify na fakturę FA(3) sprzedawcy zwolnionego z VAT. Pola dodatkowe, opcje, kurs średni NBP i opcje w ksef.conf."
+description: "ksef convert zamienia eksport JSON lub XML z Invoify na fakturę FA(3): zwolnioną z VAT albo ze stawką 23, 8 lub 5%. Pola dodatkowe, opcje i kurs średni NBP."
 ---
 
 # Faktury z Invoify
@@ -9,8 +9,8 @@ description: "ksef convert zamienia eksport JSON lub XML z Invoify na fakturę F
 
 Zamienia eksport z [Invoify](https://github.com/al1abb/invoify) (JSON albo
 XML) na fakturę FA(3). Wynik trafia na wyjście albo do podanego pliku.
-Obecnie obsługuje tylko sprzedawców zwolnionych z VAT (art. 113).
-Faktury z podatkiem, rabatem albo kosztem wysyłki są odrzucane.
+Faktura jest zwolniona z VAT (art. 113), chyba że w Invoify ustawiono podatek
+procentowy 23, 8 albo 5. Faktury z rabatem albo kosztem wysyłki są odrzucane.
 
 ```bash
 ksef convert faktura.json faktura.xml
@@ -43,6 +43,17 @@ Z faktury Invoify przenoszone są też: opis pozycji, warunki płatności, numer
 zamówienia oraz każde inne pole dodatkowe. Trafiają na fakturę jako dodatkowe
 opisy (pary klucz i wartość), a numer zamówienia do warunków transakcji.
 
+### Faktura z VAT
+
+Gdy faktura w Invoify ma podatek procentowy 23, 8 albo 5, `convert` tworzy
+fakturę z VAT. Ceny pozycji są wtedy cenami netto, podatek liczony jest od
+sumy netto, a kwota faktury w Invoify jest kwotą brutto.
+
+- Jedna stawka na całą fakturę.
+- Tylko faktury w PLN.
+- Podatek podany jako kwota, inna stawka albo opcja `--exemption` kończą się
+  błędem.
+
 Opcje podaje się przed plikami. Dotyczą wartości, na które Invoify nie ma
 pól:
 
@@ -54,6 +65,9 @@ pól:
 | `--paid-date DATA`   | Oznacza fakturę jako zapłaconą w podanym dniu.          |
 | `--due-date DATA`    | Termin płatności zamiast tego z faktury.                |
 | `--place TEKST`      | Miejsce wystawienia faktury.                            |
+| `--send`             | Po konwersji pyta i wysyła fakturę do KSeF.             |
+| `--payment FORMA`    | Forma płatności: `cash`, `card`, `transfer`, `mobile`,  |
+|                      | `cheque`, `credit` albo `voucher`.                      |
 | `--rate KURS`        | Kurs waluty zamiast kursu NBP.                          |
 | `--rate-date DATA`   | Kurs średni NBP z tego dnia albo ostatni przed nim.     |
 | `--buyer-country XX` | Kod kraju nabywcy, gdy nazwa nie jest rozpoznana.       |
@@ -70,6 +84,19 @@ Przykład faktury w euro dla kontrahenta z Niemiec:
 ```bash
 ksef convert --sale-date 2026-10-31 faktura.json faktura.xml
 ```
+
+### Konwersja i wysyłka jednym poleceniem
+
+```bash
+ksef convert --send faktura.json
+```
+
+`convert --send` zapisuje fakturę jako `faktura.xml` obok pliku źródłowego,
+pokazuje jej podsumowanie i pyta, czy ją wysłać. Wysyła tylko po odpowiedzi
+`y`. Brak odpowiedzi, na przykład w skrypcie, kończy się błędem i faktura nie
+jest wysyłana.
+
+Pliku faktury, która ma już UPO, `convert` nie nadpisuje.
 
 Regularnie używane opcje można wpisać raz do `ksef.conf`. Parametry z wiersza
 poleceń mają pierwszeństwo. Wartości ze spacją ujmij w cudzysłów, np.

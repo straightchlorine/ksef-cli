@@ -8,10 +8,9 @@ description: "What ksef-cli does not do, how the code is laid out and how to run
 ## What the tool does not do
 
 - It does not create invoices from scratch. `convert` only turns an Invoify
-  export into one, and only for VAT-exempt sellers.
+  export into one: VAT-exempt, or with a single rate of 23, 8 or 5%.
 - It does not check an invoice against the XSD schema. KSeF does that on
   submission.
-- It does not show purchase invoices, only issued ones.
 - It does not support certificate login (XAdES) or batch sessions.
 
 ## Development

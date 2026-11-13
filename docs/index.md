@@ -23,7 +23,7 @@ Narzędzie nie tworzy faktur od zera!
 - Pokazuje faktury wystawione w danym roku i pobiera je z KSeF
 - Działa ze środowiskiem testowym, demo i produkcyjnym
 - Zamienia fakturę z [Invoify](https://github.com/al1abb/invoify) (eksport JSON
-  lub XML) na XML FA(3) dla sprzedawców zwolnionych z VAT (art. 113)
+  lub XML) na XML FA(3): zwolnioną z VAT (art. 113) albo ze stawką 23, 8 lub 5%
 - Dla faktur w walucie obcej pobiera kurs średni z publicznego API NBP
 
 ## Instalacja

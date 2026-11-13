@@ -1,6 +1,6 @@
 ---
 title: "Convert an Invoify invoice to FA(3) XML for KSeF"
-description: "ksef convert turns an Invoify JSON or XML export into an FA(3) invoice of a VAT-exempt seller. Custom fields, options, the NBP mid rate, defaults in ksef.conf."
+description: "ksef convert turns an Invoify JSON or XML export into an FA(3) invoice: VAT-exempt, or with a rate of 23, 8 or 5%. Custom fields, options and the NBP mid rate."
 ---
 
 # Invoices from Invoify
@@ -9,8 +9,8 @@ description: "ksef convert turns an Invoify JSON or XML export into an FA(3) inv
 
 Converts an [Invoify](https://github.com/al1abb/invoify) export (JSON or
 XML) into an FA(3) invoice. The result goes to standard output or to the
-given file. It currently supports only VAT-exempt sellers (art. 113).
-Invoices with tax, a discount or a shipping cost are refused.
+given file. The invoice is VAT-exempt (art. 113) unless Invoify has a percentage
+tax of 23, 8 or 5. Invoices with a discount or a shipping cost are refused.
 
 ```bash
 ksef convert invoice.json invoice.xml
@@ -44,6 +44,17 @@ terms, the order number and every other custom field. They go onto the invoice
 as additional descriptions (key and value pairs), and the order number into
 the transaction terms.
 
+### An invoice with VAT
+
+When the Invoify invoice has a percentage tax of 23, 8 or 5, `convert` writes
+an invoice with VAT. Item prices are then net prices, the tax is computed on
+the net sum, and the Invoify invoice total is the gross amount.
+
+- One rate for the whole invoice.
+- PLN invoices only.
+- Tax given as an amount, another rate, or the `--exemption` option end with
+  an error.
+
 Options go before the files. They cover values Invoify has no fields for:
 
 | Option               | Meaning                                                  |
@@ -54,6 +65,9 @@ Options go before the files. They cover values Invoify has no fields for:
 | `--paid-date DATE`   | Marks the invoice as paid on the given day.              |
 | `--due-date DATE`    | Payment due date, instead of the invoice's.              |
 | `--place TEXT`       | Place of issue.                                          |
+| `--send`             | After converting, asks and then submits to KSeF.         |
+| `--payment FORM`     | Payment form: `cash`, `card`, `transfer`, `mobile`,      |
+|                      | `cheque`, `credit` or `voucher`.                         |
 | `--rate RATE`        | Exchange rate, instead of NBP's.                         |
 | `--rate-date DATE`   | NBP's mid rate for that day, or the last one before it.  |
 | `--buyer-country XX` | The buyer's country code, when the name is not known.    |
@@ -70,6 +84,19 @@ An example of a euro invoice for a customer in Germany:
 ```bash
 ksef convert --sale-date 2026-10-31 invoice.json invoice.xml
 ```
+
+### Convert and submit in one command
+
+```bash
+ksef convert --send invoice.json
+```
+
+`convert --send` writes the invoice as `invoice.xml` next to the source file,
+shows its summary and asks whether to submit it. It submits only on the
+answer `y`. No answer, for example in a script, ends with an error and the
+invoice is not submitted.
+
+`convert` does not overwrite the file of an invoice that already has a UPO.
 
 Options you use regularly can be written once in `ksef.conf`. Command-line
 parameters take precedence. Put values with a space in quotes, e.g.

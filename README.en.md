@@ -25,7 +25,7 @@ The tool does not create invoices from scratch!
 - Lists the invoices issued in a given year and downloads them from KSeF
 - Works with the test, demo and production environments
 - Converts an [Invoify](https://github.com/al1abb/invoify) invoice (JSON or XML
-  export) into an FA(3) XML for VAT-exempt sellers (art. 113)
+  export) into an FA(3) XML: VAT-exempt (art. 113), or with a rate of 23, 8 or 5%
 - For foreign-currency invoices, fetches the mid rate from NBP's public API
 
 ## Getting started

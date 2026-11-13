@@ -42,16 +42,25 @@
 {{- if .SaleDate}}
     <P_6>{{.SaleDate}}</P_6>
 {{- end}}
-    <P_13_7>{{.Total}}</P_13_7>
-    <P_15>{{.Total}}</P_15>
+{{- if .VATRate}}
+    <P_13_{{.VATBucket}}>{{.Net}}</P_13_{{.VATBucket}}>
+    <P_14_{{.VATBucket}}>{{.VAT}}</P_14_{{.VATBucket}}>
+{{- else}}
+    <P_13_7>{{.Net}}</P_13_7>
+{{- end}}
+    <P_15>{{.Gross}}</P_15>
     <Adnotacje>
       <P_16>2</P_16>
       <P_17>2</P_17>
       <P_18>2</P_18>
       <P_18A>2</P_18A>
       <Zwolnienie>
+{{- if .VATRate}}
+        <P_19N>1</P_19N>
+{{- else}}
         <P_19>1</P_19>
         <P_19A>{{.Exemption}}</P_19A>
+{{- end}}
       </Zwolnienie>
       <NoweSrodkiTransportu>
         <P_22N>1</P_22N>
@@ -79,15 +88,21 @@
       <P_8A>{{.Unit}}</P_8A>
 {{- end}}
       <P_8B>{{.Qty}}</P_8B>
+{{- if $.VATRate}}
+      <P_9A>{{.Price}}</P_9A>
+      <P_11>{{.Sum}}</P_11>
+      <P_12>{{$.VATRate}}</P_12>
+{{- else}}
       <P_9B>{{.Price}}</P_9B>
       <P_11A>{{.Sum}}</P_11A>
       <P_12>zw</P_12>
+{{- end}}
 {{- if $.Rate}}
       <KursWaluty>{{$.Rate}}</KursWaluty>
 {{- end}}
     </FaWiersz>
 {{- end}}
-{{- if or .PaidDate .DueDate .Account}}
+{{- if or .PaidDate .DueDate .Form}}
     <Platnosc>
 {{- if .PaidDate}}
       <Zaplacono>1</Zaplacono>
@@ -98,8 +113,10 @@
         <Termin>{{.DueDate}}</Termin>
       </TerminPlatnosci>
 {{- end}}
+{{- if .Form}}
+      <FormaPlatnosci>{{.Form}}</FormaPlatnosci>
+{{- end}}
 {{- if .Account}}
-      <FormaPlatnosci>6</FormaPlatnosci>
       <RachunekBankowy>
         <NrRB>{{.Account}}</NrRB>
 {{- if .SWIFT}}

@@ -7,6 +7,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"slices"
 	"strconv"
@@ -86,7 +87,10 @@ type invoify struct {
 			Quantity    num    `xml:"quantity"`
 			UnitPrice   num    `xml:"unitPrice"`
 		} `xml:"items"`
-		TaxDetails      invoifyAmount `xml:"taxDetails"`
+		TaxDetails struct {
+			Amount     num    `xml:"amount"`
+			AmountType string `xml:"amountType"` // percentage | amount
+		} `xml:"taxDetails"`
 		DiscountDetails invoifyAmount `xml:"discountDetails"`
 		ShippingDetails struct {
 			Cost num `xml:"cost"`
@@ -126,8 +130,18 @@ func fromInvoify(in []byte) (*Invoice, error) {
 		return nil, err
 	}
 	d := src.Details
-	if d.TaxDetails.Amount != 0 || d.DiscountDetails.Amount != 0 || d.ShippingDetails.Cost != 0 {
-		return nil, errors.New("tax, discount and shipping are not supported yet")
+	if d.DiscountDetails.Amount != 0 || d.ShippingDetails.Cost != 0 {
+		return nil, errors.New("discount and shipping are not supported yet")
+	}
+	// Invoify adds its tax on top of the items, so a percentage is a VAT rate
+	// on net prices. A fixed amount says nothing about the rate.
+	vat := float64(d.TaxDetails.Amount)
+	switch {
+	case vat == 0:
+	case d.TaxDetails.AmountType != "percentage":
+		return nil, errors.New("tax as a fixed amount is not supported - give it as a percentage")
+	case vat != math.Trunc(vat) || vat < 0 || vat > 100:
+		return nil, fmt.Errorf("tax of %v%% is not a VAT rate", vat)
 	}
 	if src.Sender.custom("NIP") == "" {
 		return nil, errors.New(`the sender needs a custom field "NIP" with a 10-digit NIP`)
@@ -155,6 +169,7 @@ func fromInvoify(in []byte) (*Invoice, error) {
 		Buyer:         party(src.Receiver),
 		REGON:         xmlText(src.Sender.custom("REGON")),
 		DeclaredTotal: float64(d.TotalAmount),
+		VATRate:       int(vat),
 		Account:       xmlText(strings.ReplaceAll(d.PaymentInformation.AccountNumber, " ", "")),
 		SWIFT:         xmlText(src.Sender.custom(swiftKeys...)),
 		BankName:      xmlText(d.PaymentInformation.BankName),

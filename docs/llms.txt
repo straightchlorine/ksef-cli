@@ -2,14 +2,14 @@
 
 > Narzędzie wiersza poleceń do wysyłania faktur do KSeF (Krajowy System e-Faktur, API 2.0). Przyjmuje gotowy XML faktury FA(3), loguje się tokenem, szyfruje fakturę, wysyła ją, zapisuje UPO i wypisuje numer KSeF z publicznym linkiem do weryfikacji.
 
-Program jest napisany w Go i korzysta wyłącznie z biblioteki standardowej. Polecenie convert zamienia eksport JSON lub XML z Invoify na fakturę FA(3) sprzedawcy zwolnionego z VAT (art. 113). Narzędzie działa ze środowiskiem testowym, demo i produkcyjnym. Ten sam serwis istnieje po angielsku pod adresem https://ksef.piotrkrzysztof.dev/en/.
+Program jest napisany w Go i korzysta wyłącznie z biblioteki standardowej. Polecenie convert zamienia eksport JSON lub XML z Invoify na fakturę FA(3): zwolnioną z VAT (art. 113) albo ze stawką 23, 8 lub 5%. Narzędzie działa ze środowiskiem testowym, demo i produkcyjnym. Ten sam serwis istnieje po angielsku pod adresem https://ksef.piotrkrzysztof.dev/en/.
 
 ## Strony
 
 - [Wprowadzenie](https://ksef.piotrkrzysztof.dev/): co robi narzędzie, funkcje, instalacja i pierwsze polecenia
 - [Token KSeF i środowiska](https://ksef.piotrkrzysztof.dev/token/): generowanie tokenu w Aplikacji Podatnika, uprawnienia, zmienna KSEF_TOKEN oraz adresy środowisk test, demo i prod
 - [Konfiguracja](https://ksef.piotrkrzysztof.dev/configuration/): plik ksef.conf, jego klucze, zmienna KSEF_CONFIG i to, co trafia na dysk
-- [Polecenia](https://ksef.piotrkrzysztof.dev/commands/): init, selfcheck, send, list, pull i version, ich wynik oraz kody wyjścia
+- [Polecenia](https://ksef.piotrkrzysztof.dev/commands/): init, selfcheck, send, status, list, pull i version, ich wynik oraz kody wyjścia
 - [Faktury z Invoify](https://ksef.piotrkrzysztof.dev/invoify/): polecenie convert, pola dodatkowe, opcje, kurs średni NBP i opcje domyślne w ksef.conf
 - [O projekcie](https://ksef.piotrkrzysztof.dev/about/): czego narzędzie nie robi, układ kodu, testy, licencja i autor
 
