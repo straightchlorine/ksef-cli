@@ -3,11 +3,16 @@ when:
 
 steps:
   check:
-    image: golang:1.26
+    image: golang:1.27
     commands:
       - test -z "$(gofmt -l .)"
       - go vet ./...
-      - go test ./...
+      - go test -race ./...
+
+  lint:
+    image: golangci/golangci-lint:v2.15.0
+    commands:
+      - golangci-lint run ./...
 
   release:
     image: goreleaser/goreleaser:latest

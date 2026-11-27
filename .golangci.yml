@@ -1,0 +1,10 @@
+version: "2"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters:
+  enable:
+    - whitespace # no blank line right after { or right before }
