@@ -18,7 +18,7 @@ func captured(t *testing.T, print func(w *os.File)) string {
 		t.Fatal(err)
 	}
 	print(w)
-	w.Close()
+	_ = w.Close() // the reader sees EOF either way
 	out, _ := io.ReadAll(r)
 	return string(out)
 }

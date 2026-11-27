@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -24,9 +25,11 @@ var (
 	fakeDropsSend      bool
 	fakeUPOFails       bool
 	fakeSessionEmpty   bool
-	fakeStatusFailures int
-	fakeLoginDrops     int
-	fakeQueries        int
+	fakeNoRev2         bool
+	fakeRev2Polls      atomic.Int32
+	fakeStatusFailures atomic.Int32
+	fakeLoginDrops     atomic.Int32
+	fakeQueries        atomic.Int32
 	// the invoice a send must carry; empty for any
 	fakeInvoice = sampleInvoice
 )
@@ -34,7 +37,7 @@ var (
 // hangUp takes the request and cuts the line without answering.
 func hangUp(w http.ResponseWriter) {
 	conn, _, _ := w.(http.Hijacker).Hijack()
-	conn.Close()
+	_ = conn.Close() // the point is to cut the line
 }
 
 // fakeKSeF serves the auth and send endpoints the way the real API does and
@@ -59,7 +62,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 	}
 	reply := func(w http.ResponseWriter, status int, v any) {
 		w.WriteHeader(status)
-		json.NewEncoder(w).Encode(v)
+		_ = json.NewEncoder(w).Encode(v) // a client that left is the test's problem, not the fake's
 	}
 	mux := http.NewServeMux()
 	// on registers a handler that insists on the given bearer token ("" for none).
@@ -84,8 +87,8 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		}})
 	})
 	on("POST /auth/challenge", "", func(w http.ResponseWriter, _ *http.Request) {
-		if fakeLoginDrops > 0 {
-			fakeLoginDrops--
+		if fakeLoginDrops.Load() > 0 {
+			fakeLoginDrops.Add(-1)
 			hangUp(w)
 			return
 		}
@@ -116,12 +119,26 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		})
 	})
 	authPolls := 0
-	on("GET /auth/ref-1", "auth-token", func(w http.ResponseWriter, _ *http.Request) {
+	authStatus := func(w http.ResponseWriter, _ *http.Request) {
 		code := authCode
 		if authPolls++; authPolls == 1 {
 			code = 100
 		}
 		reply(w, 200, map[string]any{"status": statusInfo{Code: code, Description: "desc"}})
+	}
+	on("GET /auth/rev2/ref-1", "auth-token", func(w http.ResponseWriter, r *http.Request) {
+		fakeRev2Polls.Add(1)
+		if fakeNoRev2 {
+			http.NotFound(w, r)
+			return
+		}
+		authStatus(w, r)
+	})
+	on("GET /auth/ref-1", "auth-token", func(w http.ResponseWriter, r *http.Request) {
+		if !fakeNoRev2 {
+			t.Error("the old status endpoint was used although rev2 answers")
+		}
+		authStatus(w, r)
 	})
 	on("POST /auth/token/redeem", "auth-token", func(w http.ResponseWriter, _ *http.Request) {
 		reply(w, 200, map[string]any{"accessToken": map[string]string{"token": "access-token"}})
@@ -176,8 +193,8 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 	invoicePolls := 0
 	sentInvoice := "GET /sessions/20260301-SO-0000000001-0000000001-AA/invoices/inv-1"
 	on(sentInvoice, "access-token", func(w http.ResponseWriter, _ *http.Request) {
-		if fakeStatusFailures > 0 {
-			fakeStatusFailures--
+		if fakeStatusFailures.Load() > 0 {
+			fakeStatusFailures.Add(-1)
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
@@ -195,7 +212,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		w.Write([]byte("<upo/>"))
+		_, _ = w.Write([]byte("<upo/>"))
 	})
 
 	// what `ksef status` reads: the session's invoices, or the session itself
@@ -225,7 +242,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		}
 		from, _ := time.Parse(time.RFC3339, req.DateRange.From)
 		to, err := time.Parse(time.RFC3339, req.DateRange.To)
-		fakeQueries++
+		fakeQueries.Add(1)
 		received := req.SubjectType == "Subject2"
 		if !received && req.SubjectType != "Subject1" ||
 			req.DateRange.DateType != "Issue" || err != nil ||
@@ -250,7 +267,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 	})
 	stored := "GET /invoices/ksef/1234563218-20260301-0123456789AB-CD"
 	on(stored, "access-token", func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(sampleInvoice))
+		_, _ = w.Write([]byte(sampleInvoice))
 	})
 
 	srv := httptest.NewServer(mux)
@@ -261,8 +278,11 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		srv.Close()
 		delete(baseURLs, "fake")
 		pollInterval = oldInterval
-		fakeDropsSend, fakeUPOFails, fakeSessionEmpty = false, false, false
-		fakeStatusFailures, fakeLoginDrops, fakeQueries = 0, 0, 0
+		fakeDropsSend, fakeUPOFails, fakeSessionEmpty, fakeNoRev2 = false, false, false, false
+		fakeRev2Polls.Store(0)
+		fakeStatusFailures.Store(0)
+		fakeLoginDrops.Store(0)
+		fakeQueries.Store(0)
 		fakeInvoice, stdin = sampleInvoice, os.Stdin
 	})
 	return &Config{Env: "fake", NIP: "1234567890", Token: "secret-token", CacheDir: t.TempDir()}
@@ -278,9 +298,30 @@ func TestAuthenticate(t *testing.T) {
 	}
 }
 
-func TestAuthenticateRejected(t *testing.T) {
+// An environment without rev2 answers 404 to its first poll; the old endpoint takes over.
+func TestAuthenticateWithoutRev2(t *testing.T) {
+	cfg := fakeKSeF(t, 200, 200)
+	fakeNoRev2 = true
+	if got, err := authenticate(cfg); err != nil || got != "access-token" {
+		t.Errorf("a 404 from rev2 should fall back to the old endpoint, got %q, %v", got, err)
+	}
+	if n := fakeRev2Polls.Load(); n != 1 {
+		t.Errorf("rev2 was asked %d times, want once before the fallback", n)
+	}
+}
+
+// A token past its validity period is told apart from other rejections.
+func TestAuthenticateTokenExpired(t *testing.T) {
 	_, err := authenticate(fakeKSeF(t, 450, 200))
-	if err == nil || !strings.Contains(err.Error(), "450") ||
+	if err == nil || !strings.Contains(err.Error(), "KSEF_TOKEN") ||
+		!strings.Contains(err.Error(), "Tokeny") {
+		t.Errorf("want advice to generate a new token, got %v", err)
+	}
+}
+
+func TestAuthenticateRejected(t *testing.T) {
+	_, err := authenticate(fakeKSeF(t, 403, 200))
+	if err == nil || !strings.Contains(err.Error(), "403") ||
 		!strings.Contains(err.Error(), "env=fake") {
 		t.Errorf("want a login-rejected error carrying the status code, got %v", err)
 	}
@@ -289,16 +330,16 @@ func TestAuthenticateRejected(t *testing.T) {
 // A login that gets no answer is tried again, three times in all.
 func TestAuthenticateRetries(t *testing.T) {
 	cfg := fakeKSeF(t, 200, 200)
-	fakeLoginDrops = 2
+	fakeLoginDrops.Store(2)
 	if got, err := authenticate(cfg); err != nil || got != "access-token" {
 		t.Errorf("two unanswered logins should be ridden out, got %q, %v", got, err)
 	}
-	fakeLoginDrops = 3
+	fakeLoginDrops.Store(3)
 	if _, err := authenticate(cfg); err == nil {
 		t.Error("three unanswered logins should be an error")
 	}
-	if fakeLoginDrops != 0 {
-		t.Errorf("%d unanswered logins were never tried", fakeLoginDrops)
+	if n := fakeLoginDrops.Load(); n != 0 {
+		t.Errorf("%d unanswered logins were never tried", n)
 	}
 }
 

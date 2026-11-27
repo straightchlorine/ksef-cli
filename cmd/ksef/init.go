@@ -61,7 +61,7 @@ func cmdInit(args []string) error {
 		return err
 	}
 	if _, err := fmt.Fprintf(f, confTemplate, env, nip); err != nil {
-		f.Close()
+		_ = f.Close() // the write error is the one to report
 		return err
 	}
 	if err := f.Close(); err != nil {

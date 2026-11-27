@@ -27,7 +27,7 @@ type xmlText string
 
 func (s xmlText) String() string {
 	var b bytes.Buffer
-	xml.EscapeText(&b, []byte(s))
+	_ = xml.EscapeText(&b, []byte(s))
 	return b.String()
 }
 

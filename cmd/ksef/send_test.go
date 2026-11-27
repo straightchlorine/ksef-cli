@@ -69,13 +69,13 @@ func TestSendRejected(t *testing.T) {
 // like a failed send.
 func TestSendStatusTrouble(t *testing.T) {
 	cfg := fakeKSeF(t, 200, 200)
-	fakeStatusFailures = 3
+	fakeStatusFailures.Store(3)
 	res, err := sendInvoice(cfg, writeInvoice(t, sampleInvoice))
 	if err != nil || res.KsefNumber != "KSEF-NUMBER-1" {
 		t.Errorf("a few failed status calls should be ridden out, got %v", err)
 	}
 
-	fakeStatusFailures = 100
+	fakeStatusFailures.Store(100)
 	path := writeInvoice(t, sampleInvoice)
 	_, err = sendInvoice(cfg, path)
 	if err == nil || !strings.Contains(err.Error(), "do not resend") ||

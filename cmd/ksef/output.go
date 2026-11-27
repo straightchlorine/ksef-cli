@@ -150,7 +150,7 @@ var usageMarks = regexp.MustCompile(`(?m)^(Usage:|Subcommands:|Config|  [a-z_]+\
 
 // printUsage prints the help with its headings and command names in bold.
 func printUsage(w *os.File) {
-	fmt.Fprint(w, usageMarks.ReplaceAllStringFunc(usage, func(s string) string {
+	_, _ = fmt.Fprint(w, usageMarks.ReplaceAllStringFunc(usage, func(s string) string {
 		return paint(w, bold, s)
 	}))
 }
@@ -177,7 +177,7 @@ func prefixed(prefix, s string) string {
 // field prints one "  label:  value" line, skipped when there is no value.
 func field(w *os.File, label, value string) {
 	if value != "" {
-		fmt.Fprintf(w, "  %s %s\n", paint(w, dim, fmt.Sprintf("%-8s", label+":")), value)
+		_, _ = fmt.Fprintf(w, "  %s %s\n", paint(w, dim, fmt.Sprintf("%-8s", label+":")), value)
 	}
 }
 
@@ -245,6 +245,6 @@ func printTable(w *os.File, rows [][]string, rightAlign int, colour func(row, co
 			}
 			cells[i] = cell
 		}
-		fmt.Fprintln(w, strings.Join(cells, "  "))
+		_, _ = fmt.Fprintln(w, strings.Join(cells, "  "))
 	}
 }

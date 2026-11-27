@@ -22,8 +22,8 @@ func TestListInvoices(t *testing.T) {
 		t.Fatal(err)
 	}
 	// three quarters have begun by August: two pages in the first, one in each other
-	if fakeQueries != 4 {
-		t.Errorf("%d queries for a year, want 4", fakeQueries)
+	if fakeQueries.Load() != 4 {
+		t.Errorf("%d queries for a year, want 4", fakeQueries.Load())
 	}
 	// both pages of the first quarter, in order
 	if len(got) != 2 || got[0].KsefNumber != "KSEF-NUMBER-0" || got[1].KsefNumber != "KSEF-NUMBER-1" ||
@@ -45,9 +45,9 @@ func TestListReceivedMonth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fakeQueries != 2 || len(got) != 2 || got[0].InvoiceNumber != "IN/0" ||
+	if fakeQueries.Load() != 2 || len(got) != 2 || got[0].InvoiceNumber != "IN/0" ||
 		got[0].Seller.Name != "Seller" {
-		t.Errorf("%d queries, got %+v", fakeQueries, got)
+		t.Errorf("%d queries, got %+v", fakeQueries.Load(), got)
 	}
 }
 
@@ -137,7 +137,7 @@ func TestPull(t *testing.T) {
 	os.Stdout = w
 	err := cmdPull([]string{"1234563218-20260301-0123456789AB-CD"})
 	os.Stdout = stdout
-	w.Close()
+	_ = w.Close() // the reader sees EOF either way
 	if got, _ := io.ReadAll(r); err != nil || !bytes.Equal(got, []byte(sampleInvoice)) {
 		t.Errorf("stdout %q, err %v", got, err)
 	}

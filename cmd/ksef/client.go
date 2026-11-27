@@ -162,21 +162,25 @@ func apiCall(method, url, bearer string, in any) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() // the body is read in full; a close error changes nothing
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", method, url, err)
 	}
 	if resp.StatusCode/100 != 2 {
-		return nil, &refusedError{fmt.Sprintf("%s %s%s: %s: %s", method, req.URL.Host,
-			req.URL.Path, resp.Status, apiError(body))}
+		msg := fmt.Sprintf("%s %s%s: %s: %s", method, req.URL.Host, req.URL.Path, resp.Status,
+			apiError(body))
+		return nil, &refusedError{msg: msg, status: resp.StatusCode}
 	}
 	return body, nil
 }
 
 // refusedError is an answer from the server that says no. Any other error
 // from apiCall means the request may or may not have got through.
-type refusedError struct{ msg string }
+type refusedError struct {
+	msg    string
+	status int // the HTTP status
+}
 
 func (e *refusedError) Error() string { return e.msg }
 

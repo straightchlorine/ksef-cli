@@ -54,7 +54,7 @@ func loadConfig() (*Config, error) {
 		switch {
 		case err == nil:
 			parseErr := parseConfig(f, cfg)
-			f.Close()
+			_ = f.Close() // only read
 			if parseErr != nil {
 				return nil, fmt.Errorf("%s: %w", path, parseErr)
 			}

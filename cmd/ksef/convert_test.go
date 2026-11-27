@@ -81,7 +81,7 @@ func TestConvertForeign(t *testing.T) {
 		if r.URL.Path != "/eur/2026-02-18/2026-02-28/" {
 			t.Errorf("NBP path %s", r.URL.Path)
 		}
-		w.Write([]byte(`{"rates":[{"no":"1/A","effectiveDate":"2026-02-26","mid":4.2},
+		_, _ = w.Write([]byte(`{"rates":[{"no":"1/A","effectiveDate":"2026-02-26","mid":4.2},
 			{"no":"2/A","effectiveDate":"2026-02-27","mid":4.3955}]}`))
 	}))
 	defer srv.Close()
@@ -264,9 +264,9 @@ func TestCmdConvert(t *testing.T) {
 	dir := t.TempDir()
 	in, out := filepath.Join(dir, "in.json"), filepath.Join(dir, "out.xml")
 	conf := filepath.Join(dir, "ksef.conf")
-	os.WriteFile(in, invoifyJSON(nil), 0o600)
+	_ = os.WriteFile(in, invoifyJSON(nil), 0o600) // a missing input fails the command below
 	options := `convert_options=--unit "" --place "Nowy Sącz" --paid-date 2026-03-01`
-	os.WriteFile(conf, []byte(options+"\n"), 0o600)
+	_ = os.WriteFile(conf, []byte(options+"\n"), 0o600)
 	t.Setenv("KSEF_CONFIG", conf)
 
 	if err := cmdConvert([]string{"--paid-date", "2026-03-05", in, out}); err != nil {
@@ -340,7 +340,7 @@ func TestConvertSend(t *testing.T) {
 	dir := t.TempDir()
 	in := filepath.Join(dir, "faktura.json")
 	out, upo := filepath.Join(dir, "faktura.xml"), filepath.Join(dir, "faktura.upo.xml")
-	os.WriteFile(in, invoifyJSON(nil), 0o600)
+	_ = os.WriteFile(in, invoifyJSON(nil), 0o600) // a missing input fails the command below
 	exists := func(p string) bool { _, err := os.Stat(p); return err == nil }
 
 	// no answer at all is an error, and nothing is sent
@@ -372,7 +372,7 @@ func TestConvertSend(t *testing.T) {
 	}
 	// an .xml source has no default output name
 	xmlIn := filepath.Join(dir, "export.xml")
-	os.WriteFile(xmlIn, []byte("<root/>"), 0o600)
+	_ = os.WriteFile(xmlIn, []byte("<root/>"), 0o600)
 	if err := cmdConvert([]string{"--send", xmlIn}); err == nil {
 		t.Error("--send on an .xml source without OUT.xml should be refused")
 	}

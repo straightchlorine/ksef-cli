@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -92,11 +93,21 @@ func login(cfg *Config) (string, error) {
 	var op struct {
 		Status statusInfo `json:"status"`
 	}
-	statusURL := base + "/auth/" + started.ReferenceNumber
+	statusURL := base + "/auth/rev2/" + started.ReferenceNumber
 	for i := 0; ; i++ {
-		if err := apiJSON("GET", statusURL, authToken, nil, &op); err != nil {
+		err := apiJSON("GET", statusURL, authToken, nil, &op)
+
+		var refused *refusedError
+		if i == 0 && errors.As(err, &refused) && refused.status == http.StatusNotFound {
+			// NOTE: an environment that does not serve rev2 yet answers 404, in such case - ask the old endpoint.
+			// After 15 June 2027 this can go.
+			statusURL = base + "/auth/" + started.ReferenceNumber
+			err = apiJSON("GET", statusURL, authToken, nil, &op)
+		}
+		if err != nil {
 			return "", err
 		}
+
 		if op.Status.Code != 100 {
 			break
 		}
@@ -104,6 +115,10 @@ func login(cfg *Config) (string, error) {
 			return "", errors.New("login still in progress, giving up - try again in a moment")
 		}
 		time.Sleep(pollInterval)
+	}
+	if op.Status.Code == 450 {
+		return "", errors.New("login rejected: the token is past its validity period - " +
+			"generate a new one in Aplikacja Podatnika (the Tokeny tab) and put it in KSEF_TOKEN")
 	}
 	if op.Status.Code != 200 {
 		return "", fmt.Errorf(
