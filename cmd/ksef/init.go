@@ -40,10 +40,12 @@ func cmdInit(args []string) error {
 	if _, ok := baseURLs[env]; !ok {
 		return fmt.Errorf("env must be test|demo|prod, got %q", env)
 	}
+
 	path, _ := configPath()
 	if path == "" {
 		return errors.New("home directory unknown, set $KSEF_CONFIG")
 	}
+
 	token := os.Getenv("KSEF_TOKEN")
 	nip := ""
 	if m := tokenNIP.FindStringSubmatch(token); m != nil {
@@ -53,6 +55,7 @@ func cmdInit(args []string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
+
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if errors.Is(err, fs.ErrExist) {
 		return fmt.Errorf("%s already exists, leaving it alone", path)
@@ -60,6 +63,7 @@ func cmdInit(args []string) error {
 	if err != nil {
 		return err
 	}
+
 	if _, err := fmt.Fprintf(f, confTemplate, env, nip); err != nil {
 		_ = f.Close() // the write error is the one to report
 		return err
@@ -70,12 +74,14 @@ func cmdInit(args []string) error {
 
 	fmt.Printf("%s wrote %s (%s)\n", paint(os.Stdout, green, "[  OK  ]"), path,
 		envTag(os.Stdout, env))
+
 	if nip == "" {
 		fmt.Println("  - set nip= in it")
 	}
 	if token == "" {
 		fmt.Println("  - export KSEF_TOKEN=<your KSeF token>")
 	}
+
 	fmt.Println("Then check the setup with: ksef selfcheck")
 	return nil
 }

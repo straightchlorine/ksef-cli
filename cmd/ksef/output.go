@@ -55,13 +55,16 @@ func colourXML(b []byte) []byte {
 		if strings.HasPrefix(s, "<?") || strings.HasPrefix(s, "<!") {
 			return []byte(esc(dim, s))
 		}
+
 		end := ">"
 		if strings.HasSuffix(s, "/>") {
 			end = "/>"
 		}
+
 		s = strings.TrimSuffix(s, end)
 		s = xmlAttr.ReplaceAllString(s, esc(yellow, "$1")+esc(dim, "=")+esc(green, "$2"))
 		s = xmlName.ReplaceAllString(s, esc(dim, "$1")+esc(cyan, "$2"))
+
 		return []byte(s + esc(dim, end))
 	})
 }
@@ -75,22 +78,27 @@ func showInvoice(invoice []byte, status string, notes [][2]string) error {
 		out = bytes.ReplaceAll(out, []byte("\t"), []byte("  "))
 		out = colourXML(out)
 	}
+
 	if _, err := os.Stdout.Write(out); err != nil {
 		return err
 	}
+
 	if !isTerminal(os.Stderr) {
 		return nil
 	}
 	if isTerminal(os.Stdout) && !bytes.HasSuffix(out, []byte("\n")) {
 		fmt.Fprintln(os.Stderr)
 	}
+
 	fmt.Fprintln(os.Stderr, paint(os.Stderr, green, "[  OK  ]"), status)
 	if head, err := parseInvoiceHead(invoice); err == nil {
 		printSummary(os.Stderr, head)
 	}
+
 	for _, n := range notes {
 		field(os.Stderr, n[0], n[1])
 	}
+
 	return nil
 }
 
@@ -107,6 +115,7 @@ func confirm(question string) (bool, error) {
 		fmt.Println()
 		return false, errors.New("no answer to the question above")
 	}
+
 	answer = strings.ToLower(strings.TrimSpace(answer))
 	return answer == "y" || answer == "yes", nil
 }
@@ -163,6 +172,7 @@ func joined(sep string, parts ...string) string {
 			kept = append(kept, p)
 		}
 	}
+
 	return strings.Join(kept, sep)
 }
 
@@ -187,15 +197,18 @@ func printSummary(w *os.File, h *invoiceHead) {
 	buyerID := joined(" ", prefixed("NIP ", b.NIP), prefixed("VAT ", b.KodUE+b.NrVatUE),
 		prefixed("id ", b.NrID))
 	issued := prefixed("issued ", joined(" in ", h.IssueDate, h.Place))
+
 	field(w, "invoice", joined(", ", h.Number, issued,
 		prefixed("sale ", h.SaleDate), prefixed("sale ", joined(" to ", h.SaleFrom, h.SaleTo))))
 	field(w, "seller", joined(", ", h.SellerName, prefixed("NIP ", h.SellerNIP)))
 	field(w, "buyer", joined(", ", b.Name, buyerID))
+
 	for i, l := range h.Lines {
 		if i == 3 {
 			field(w, "item", fmt.Sprintf("... and %d more", len(h.Lines)-i))
 			break
 		}
+
 		price := joined(" x ", joined(" ", l.Quantity, l.Unit), l.Price+l.NetPrice)
 		vat := ""
 		if _, err := strconv.Atoi(l.VATRate); err == nil {
@@ -203,19 +216,23 @@ func printSummary(w *os.File, h *invoiceHead) {
 		}
 		field(w, "item", joined(", ", l.Name, price, vat))
 	}
+
 	rate := ""
 	if len(h.Lines) > 0 {
 		rate = h.Lines[0].Rate
 	}
+
 	total := joined(" ", h.Total, h.Currency, prefixed("at ", rate))
 	vat := joined(" + ", h.VAT1, h.VAT2, h.VAT3)
 	field(w, "total", joined(", ", total, prefixed("of which VAT ", vat)))
+
 	form := ""
 	for name, code := range paymentForms {
 		if code == h.PayForm {
 			form = name
 		}
 	}
+
 	field(w, "payment", joined(", ", form, prefixed("due ", h.DueDate),
 		prefixed("paid ", h.PaidDate)))
 	field(w, "order", h.Order)
@@ -231,6 +248,7 @@ func printTable(w *os.File, rows [][]string, rightAlign int, colour func(row, co
 			widths[i] = max(widths[i], utf8.RuneCountInString(cell))
 		}
 	}
+
 	for r, row := range rows {
 		cells := make([]string, len(row))
 		for i, cell := range row {
@@ -240,11 +258,13 @@ func printTable(w *os.File, rows [][]string, rightAlign int, colour func(row, co
 			} else if i < len(row)-1 {
 				cell += pad
 			}
+
 			if c := colour(r, i); c != "" {
 				cell = paint(w, c, cell)
 			}
 			cells[i] = cell
 		}
+
 		_, _ = fmt.Fprintln(w, strings.Join(cells, "  "))
 	}
 }

@@ -28,13 +28,16 @@ func aesEncrypt(plaintext []byte) (key, iv, ciphertext []byte, err error) {
 	if _, err = rand.Read(iv); err != nil {
 		return nil, nil, nil, err
 	}
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+
 	padded := pkcs7Pad(plaintext, aes.BlockSize)
 	ciphertext = make([]byte, len(padded))
 	cipher.NewCBCEncrypter(block, iv).CryptBlocks(ciphertext, padded)
+
 	return key, iv, ciphertext, nil
 }
 
@@ -43,12 +46,14 @@ func aesDecrypt(key, iv, ciphertext []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if len(ciphertext) == 0 || len(ciphertext)%aes.BlockSize != 0 {
 		return nil, fmt.Errorf(
 			"ciphertext length %d is not a multiple of the AES block size",
 			len(ciphertext),
 		)
 	}
+
 	plaintext := make([]byte, len(ciphertext))
 	cipher.NewCBCDecrypter(block, iv).CryptBlocks(plaintext, ciphertext)
 	return pkcs7Unpad(plaintext, aes.BlockSize)
@@ -63,15 +68,18 @@ func pkcs7Unpad(b []byte, blockSize int) ([]byte, error) {
 	if len(b) == 0 || len(b)%blockSize != 0 {
 		return nil, errors.New("invalid PKCS7 padding: bad length")
 	}
+
 	n := int(b[len(b)-1])
 	if n == 0 || n > blockSize {
 		return nil, errors.New("invalid PKCS7 padding: bad pad byte")
 	}
+
 	for _, c := range b[len(b)-n:] {
 		if int(c) != n {
 			return nil, errors.New("invalid PKCS7 padding: inconsistent pad bytes")
 		}
 	}
+
 	return b[:len(b)-n], nil
 }
 

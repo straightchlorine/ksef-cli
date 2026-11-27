@@ -13,9 +13,11 @@ func TestInit(t *testing.T) {
 	if err := cmdInit([]string{"production"}); err == nil {
 		t.Error("unknown env should be rejected")
 	}
+
 	if err := cmdInit([]string{"demo"}); err != nil {
 		t.Fatal(err)
 	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		t.Fatal(err)
@@ -23,6 +25,7 @@ func TestInit(t *testing.T) {
 	if cfg.Env != "demo" || cfg.NIP != "1234567890" {
 		t.Errorf("got %+v", cfg)
 	}
+
 	if err := cmdInit(nil); err == nil {
 		t.Error("init must not overwrite an existing config")
 	}

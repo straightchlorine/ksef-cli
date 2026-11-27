@@ -18,6 +18,7 @@ func cmdSelfcheck() error {
 	if err != nil {
 		return err
 	}
+
 	msg := []byte("ksef crypto self-check")
 	ok := paint(os.Stdout, green, "[  OK  ]")
 
@@ -25,10 +26,12 @@ func cmdSelfcheck() error {
 	if err != nil {
 		return fmt.Errorf("AES encrypt: %w", err)
 	}
+
 	pt, err := aesDecrypt(key, iv, ct)
 	if err != nil {
 		return fmt.Errorf("AES decrypt: %w", err)
 	}
+
 	if !bytes.Equal(msg, pt) {
 		return fmt.Errorf("AES round-trip mismatch")
 	}
@@ -38,14 +41,17 @@ func cmdSelfcheck() error {
 	if err != nil {
 		return fmt.Errorf("RSA keygen: %w", err)
 	}
+
 	enc, err := rsaOAEPEncrypt(&rsaKey.PublicKey, msg)
 	if err != nil {
 		return fmt.Errorf("RSA-OAEP encrypt: %w", err)
 	}
+
 	dec, err := rsa.DecryptOAEP(sha256.New(), nil, rsaKey, enc, nil)
 	if err != nil {
 		return fmt.Errorf("RSA-OAEP decrypt: %w", err)
 	}
+
 	if !bytes.Equal(msg, dec) {
 		return fmt.Errorf("RSA-OAEP round-trip mismatch")
 	}
@@ -57,6 +63,7 @@ func cmdSelfcheck() error {
 			paint(os.Stdout, yellow, "[ WARN ]"), envTag(os.Stdout, cfg.Env), err)
 		return nil
 	}
+
 	if _, err := rsaOAEPEncrypt(pub, msg); err != nil {
 		return fmt.Errorf("RSA-OAEP against KSeF's key: %w", err)
 	}
@@ -68,6 +75,7 @@ func cmdSelfcheck() error {
 		hint("Set it with: export KSEF_TOKEN='...'")
 		return nil
 	}
+
 	if _, err := authenticate(cfg); err != nil {
 		return fmt.Errorf("KSeF login: %w", err)
 	}

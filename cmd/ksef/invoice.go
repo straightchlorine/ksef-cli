@@ -92,12 +92,14 @@ func (l Line) cents() int64 {
 	if !okQ || !okP {
 		return 0
 	}
+
 	c := q.Mul(q, p)
 	c.Mul(c, big.NewRat(100, 1)).Add(c, big.NewRat(1, 2))
 	n := new(big.Int).Quo(c.Num(), c.Denom())
 	if !n.IsInt64() {
 		return 0
 	}
+
 	return n.Int64()
 }
 
@@ -145,6 +147,7 @@ func (inv *Invoice) vatProblem() error {
 	case inv.Exemption != "":
 		return errors.New("an invoice with VAT cannot carry an exemption basis")
 	}
+
 	return nil
 }
 
@@ -158,6 +161,7 @@ func (inv *Invoice) Descriptions() []Extra {
 		}
 	}
 	all = append(all, inv.Extras...)
+
 	var out []Extra
 	for _, e := range all {
 		key := []rune(string(e.Key))
@@ -168,6 +172,7 @@ func (inv *Invoice) Descriptions() []Extra {
 			v = v[n:]
 		}
 	}
+
 	return out
 }
 
@@ -208,6 +213,7 @@ func countryCode(s string) string {
 	if isCountry.MatchString(s) {
 		return s
 	}
+
 	return ""
 }
 
@@ -233,6 +239,7 @@ func polishDate(s string) (string, error) {
 	if _, err := time.Parse(time.DateOnly, s); err != nil {
 		return "", fmt.Errorf("date %q: want YYYY-MM-DD", s)
 	}
+
 	return s, nil
 }
 
@@ -245,6 +252,7 @@ func validNIP(nip string) bool {
 	if len(nip) != 10 {
 		return false
 	}
+
 	sum := 0
 	for i, w := range []int{6, 5, 7, 2, 3, 4, 5, 6, 7} {
 		if nip[i] < '0' || nip[i] > '9' {
@@ -252,6 +260,7 @@ func validNIP(nip string) bool {
 		}
 		sum += w * int(nip[i]-'0')
 	}
+
 	return sum%11 == int(nip[9]-'0')
 }
 
@@ -263,15 +272,18 @@ func money(f float64) string {
 // form. A country that cannot be resolved is left as it was, for validate.
 func (inv *Invoice) normalise() error {
 	inv.Currency = strings.ToUpper(strings.TrimSpace(inv.Currency))
+
 	for _, p := range []*Party{&inv.Seller, &inv.Buyer} {
 		phone := notPhone.ReplaceAllString(string(p.Phone), "")
 		p.Phone = xmlText(phone[:min(len(phone), 16)])
+
 		// only separators go: a foreign number typed here must not turn into a NIP
 		p.NIP = strings.TrimPrefix(strings.ToUpper(nipNoise.ReplaceAllString(p.NIP, "")), "PL")
 		p.VAT = strings.ToUpper(strings.ReplaceAll(p.VAT, " ", ""))
 		if p.VAT != "" && !isVatUE.MatchString(p.VAT) {
 			return fmt.Errorf("VAT number %q is not a country prefix and a number", p.VAT)
 		}
+
 		switch {
 		case p.VAT == "":
 		case strings.HasPrefix(p.VAT, "PL"):
@@ -289,6 +301,7 @@ func (inv *Invoice) normalise() error {
 			}
 			p.VAT = ""
 		}
+
 		switch code := countryCode(p.Country); {
 		case code != "":
 			p.Country = code
@@ -298,11 +311,14 @@ func (inv *Invoice) normalise() error {
 			p.Country = p.VAT[:2]
 		}
 	}
+
 	if countryCode(inv.Seller.Country) == "" {
 		inv.Seller.Country = "PL"
 	}
+
 	inv.Number = xmlText(strings.TrimSpace(string(inv.Number)))
 	inv.Footer = xmlText(strings.TrimSpace(string(inv.Footer)))
+
 	for _, d := range []struct {
 		name  string
 		value *string
@@ -313,12 +329,14 @@ func (inv *Invoice) normalise() error {
 		if *d.value == "" && d.value != &inv.Issued {
 			continue
 		}
+
 		day, err := polishDate(*d.value)
 		if err != nil {
 			return fmt.Errorf("%s: %w", d.name, err)
 		}
 		*d.value = day
 	}
+
 	return nil
 }
 
@@ -344,6 +362,7 @@ func (inv *Invoice) validate() error {
 	if !isCurrency.MatchString(inv.Currency) {
 		return fmt.Errorf("currency %q is not a 3-letter code", inv.Currency)
 	}
+
 	if !validNIP(inv.Seller.NIP) {
 		return fmt.Errorf("seller NIP %q is not a valid NIP", inv.Seller.NIP)
 	}
@@ -351,6 +370,7 @@ func (inv *Invoice) validate() error {
 		return fmt.Errorf("buyer NIP %q is not a valid NIP - "+
 			"a foreign number goes in the VAT or NrID field", n)
 	}
+
 	for _, p := range []struct {
 		who string
 		Party
@@ -359,6 +379,7 @@ func (inv *Invoice) validate() error {
 			return fmt.Errorf("the %s needs a name and an address", p.who)
 		}
 	}
+
 	if !isCountry.MatchString(inv.Buyer.Country) {
 		return fmt.Errorf(
 			"buyer country %q is not a code or a known name - pass --buyer-country",
@@ -367,6 +388,7 @@ func (inv *Invoice) validate() error {
 	if len(inv.Lines) == 0 {
 		return errors.New("the invoice has no items")
 	}
+
 	for i, l := range inv.Lines {
 		// written so that NaN fails too; 1e12 keeps the arithmetic far from overflow
 		if l.Name == "" || !(l.Quantity > 0 && l.Quantity < 1e12) ||
@@ -377,17 +399,21 @@ func (inv *Invoice) validate() error {
 			return fmt.Errorf("item %d comes to nothing: %s x %s", i+1, l.Qty(), l.Price())
 		}
 	}
+
 	if err := inv.vatProblem(); err != nil {
 		return err
 	}
+
 	// the source may carry its total unrounded, so allow half a grosz and a hair
 	gross := float64(inv.cents()+inv.vatCents()) / 100
 	if d := inv.DeclaredTotal; d != 0 && !(math.Abs(gross-d) <= 0.0051) {
 		return fmt.Errorf("items and VAT add up to %s but the invoice total is %v", inv.Gross(), d)
 	}
+
 	if f := inv.PaymentForm; f != "" && (len(f) != 1 || f < "1" || f > "7") {
 		return fmt.Errorf("payment form %q is not a code from 1 to 7", f)
 	}
+
 	if inv.Rate != "" {
 		if inv.Currency == "PLN" {
 			return errors.New("an exchange rate makes no sense for a PLN invoice")
@@ -397,6 +423,7 @@ func (inv *Invoice) validate() error {
 			return fmt.Errorf("rate %q is not a positive number with up to 6 decimals", inv.Rate)
 		}
 	}
+
 	return nil
 }
 
@@ -406,14 +433,17 @@ func (inv *Invoice) render(now time.Time) ([]byte, error) {
 	if inv.Exemption == "" && inv.VATRate == 0 {
 		inv.Exemption = defaultExemption
 	}
+
 	inc := template.FuncMap{"inc": func(i int) int { return i + 1 }}
 	tmpl, err := template.New("fa3").Funcs(inc).Parse(fa3Template)
 	if err != nil {
 		return nil, err
 	}
+
 	var out bytes.Buffer
 	if err := tmpl.Execute(&out, inv); err != nil {
 		return nil, err
 	}
+
 	return out.Bytes(), nil
 }

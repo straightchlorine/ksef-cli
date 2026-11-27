@@ -8,6 +8,7 @@ import (
 func TestPickCert(t *testing.T) {
 	day := 24 * time.Hour
 	now := time.Date(2026, 8, 4, 12, 0, 0, 0, time.UTC)
+
 	current := publicKeyCert{
 		PublicKeyID: "current", Usage: []string{"SymmetricKeyEncryption"},
 		ValidFrom: now.Add(-300 * day), ValidTo: now.Add(60 * day),
@@ -48,6 +49,7 @@ func TestPickCert(t *testing.T) {
 			}
 			continue
 		}
+
 		if err != nil {
 			t.Errorf("%s: %v", name, err)
 		} else if got.PublicKeyID != tc.want {

@@ -30,6 +30,7 @@ func xdgPath(envVar, fallback, suffix string) string {
 		}
 		dir = filepath.Join(home, fallback)
 	}
+
 	return filepath.Join(dir, suffix)
 }
 
@@ -66,15 +67,18 @@ func loadConfig() (*Config, error) {
 	if t := os.Getenv("KSEF_TOKEN"); t != "" {
 		cfg.Token = t
 	}
+
 	if cfg.CacheDir == "" {
 		cfg.CacheDir = xdgPath("XDG_CACHE_HOME", ".cache", "ksef")
 		if cfg.CacheDir == "" {
 			return nil, errors.New("cache_dir not set and home directory unknown")
 		}
 	}
+
 	if _, ok := baseURLs[cfg.Env]; !ok {
 		return nil, fmt.Errorf("env must be test|demo|prod, got %q", cfg.Env)
 	}
+
 	return cfg, nil
 }
 
@@ -86,10 +90,12 @@ func parseConfig(r io.Reader, cfg *Config) error {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+
 		key, rawVal, ok := strings.Cut(line, "=")
 		if !ok {
 			return fmt.Errorf("not a key=value line: %q", line)
 		}
+
 		val := parseValue(rawVal)
 		switch strings.TrimSpace(key) {
 		case "env":
@@ -112,18 +118,21 @@ func parseValue(s string) string {
 	if q := strings.TrimLeft(s, " \t"); len(q) != len(s) && strings.HasPrefix(q, "#") {
 		return ""
 	}
+
 	s = strings.TrimSpace(s)
 	if len(s) >= 2 && (s[0] == '"' || s[0] == '\'') {
 		if end := strings.IndexByte(s[1:], s[0]); end >= 0 {
 			return s[1 : 1+end]
 		}
 	}
+
 	for i := 1; i < len(s); i++ {
 		if s[i] == '#' && (s[i-1] == ' ' || s[i-1] == '\t') {
 			s = s[:i]
 			break
 		}
 	}
+
 	return strings.TrimSpace(s)
 }
 

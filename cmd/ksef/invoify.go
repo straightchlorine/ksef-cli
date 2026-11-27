@@ -23,6 +23,7 @@ func (n *num) UnmarshalText(b []byte) error {
 	if s == "" || s == "null" {
 		return nil
 	}
+
 	// ParseFloat alone would take "NaN", "Inf" and hex floats
 	f, err := strconv.ParseFloat(s, 64)
 	if err != nil || !isNumber.MatchString(s) {
@@ -129,10 +130,12 @@ func fromInvoify(in []byte) (*Invoice, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	d := src.Details
 	if d.DiscountDetails.Amount != 0 || d.ShippingDetails.Cost != 0 {
 		return nil, errors.New("discount and shipping are not supported yet")
 	}
+
 	// Invoify adds its tax on top of the items, so a percentage is a VAT rate
 	// on net prices. A fixed amount says nothing about the rate.
 	vat := float64(d.TaxDetails.Amount)
@@ -143,9 +146,11 @@ func fromInvoify(in []byte) (*Invoice, error) {
 	case vat != math.Trunc(vat) || vat < 0 || vat > 100:
 		return nil, fmt.Errorf("tax of %v%% is not a VAT rate", vat)
 	}
+
 	if src.Sender.custom("NIP") == "" {
 		return nil, errors.New(`the sender needs a custom field "NIP" with a 10-digit NIP`)
 	}
+
 	party := func(p invoifyParty) Party {
 		return Party{
 			Name:    xmlText(p.Name),
@@ -159,6 +164,7 @@ func fromInvoify(in []byte) (*Invoice, error) {
 			OtherID: xmlText(p.custom("NrID")),
 		}
 	}
+
 	inv := &Invoice{
 		Number:        xmlText(d.InvoiceNumber),
 		Currency:      d.Currency,
@@ -176,6 +182,7 @@ func fromInvoify(in []byte) (*Invoice, error) {
 		AccountName:   xmlText(d.PaymentInformation.AccountName),
 		Footer:        xmlText(d.AdditionalNotes),
 	}
+
 	for _, it := range d.Items {
 		inv.Lines = append(inv.Lines, Line{
 			Name:        xmlText(it.Name),
@@ -184,10 +191,12 @@ func fromInvoify(in []byte) (*Invoice, error) {
 			UnitPrice:   float64(it.UnitPrice),
 		})
 	}
+
 	if d.PaymentTerms != "" {
 		inv.Extras = append(inv.Extras,
 			Extra{Key: "Warunki płatności", Value: xmlText(d.PaymentTerms)})
 	}
+
 	unread := func(p invoifyParty, known []string, who string) {
 		for _, c := range p.CustomInputs {
 			key := strings.TrimSpace(c.Key)
@@ -199,6 +208,7 @@ func fromInvoify(in []byte) (*Invoice, error) {
 			}
 		}
 	}
+
 	unread(src.Sender, senderKeys, "Sprzedawca")
 	unread(src.Receiver, receiverKeys, "Nabywca")
 	return inv, nil

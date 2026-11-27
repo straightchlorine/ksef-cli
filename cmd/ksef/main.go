@@ -110,6 +110,7 @@ func main() {
 			paint(os.Stderr, red, "Error:"), cmd)
 		os.Exit(2)
 	}
+
 	if err != nil {
 		fmt.Fprintln(os.Stderr, paint(os.Stderr, red, "Error:"), err)
 		os.Exit(1)

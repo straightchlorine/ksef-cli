@@ -58,13 +58,16 @@ func fetchPublicKeyCerts(cfg *Config) ([]publicKeyCert, error) {
 		}
 		return nil, err
 	}
+
 	var certs []publicKeyCert
 	if err := json.Unmarshal(body, &certs); err != nil {
 		return nil, fmt.Errorf("%s: %w", url, err)
 	}
+
 	if err := os.MkdirAll(cfg.CacheDir, 0o700); err == nil {
 		_ = os.WriteFile(cache, body, 0o600)
 	}
+
 	return certs, nil
 }
 
@@ -73,10 +76,12 @@ func readCerts(path string) ([]publicKeyCert, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var certs []publicKeyCert
 	if err := json.Unmarshal(b, &certs); err != nil {
 		return nil, err
 	}
+
 	return certs, nil
 }
 
@@ -97,13 +102,16 @@ func pickCert(certs []publicKeyCert, usage string, now time.Time) (*publicKeyCer
 		if now.Before(c.ValidFrom) || now.After(c.ValidTo) {
 			continue
 		}
+
 		if best == nil || c.ValidFrom.After(best.ValidFrom) {
 			best = c
 		}
 	}
+
 	if best == nil {
 		return nil, fmt.Errorf("no currently-valid certificate with usage=%s", usage)
 	}
+
 	return best, nil
 }
 
@@ -114,24 +122,29 @@ func publicKeyFor(cfg *Config, usage string) (*rsa.PublicKey, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+
 	c, err := pickCert(certs, usage, time.Now())
 	if err != nil {
 		return nil, "", err
 	}
+
 	der, err := base64.StdEncoding.DecodeString(c.Certificate)
 	if err != nil {
 		return nil, "", fmt.Errorf("certificate %s: %w", c.PublicKeyID, err)
 	}
+
 	cert, err := x509.ParseCertificate(der)
 	if err != nil {
 		return nil, "", fmt.Errorf("certificate %s: %w", c.PublicKeyID, err)
 	}
+
 	pub, ok := cert.PublicKey.(*rsa.PublicKey)
 	if !ok {
 		return nil, "", fmt.Errorf(
 			"certificate %s: not an RSA key (%T)", c.PublicKeyID, cert.PublicKey,
 		)
 	}
+
 	return pub, c.PublicKeyID, nil
 }
 
@@ -146,10 +159,12 @@ func apiCall(method, url, bearer string, in any) ([]byte, error) {
 		}
 		reqBody = bytes.NewReader(b)
 	}
+
 	req, err := http.NewRequest(method, url, reqBody)
 	if err != nil {
 		return nil, err
 	}
+
 	// NBP's API refuses Go's default User-Agent
 	req.Header.Set("User-Agent", "ksef-cli/"+version)
 	if in != nil {
@@ -158,20 +173,24 @@ func apiCall(method, url, bearer string, in any) ([]byte, error) {
 	if bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+bearer)
 	}
+
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }() // the body is read in full; a close error changes nothing
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", method, url, err)
 	}
+
 	if resp.StatusCode/100 != 2 {
 		msg := fmt.Sprintf("%s %s%s: %s: %s", method, req.URL.Host, req.URL.Path, resp.Status,
 			apiError(body))
 		return nil, &refusedError{msg: msg, status: resp.StatusCode}
 	}
+
 	return body, nil
 }
 
@@ -198,20 +217,25 @@ func apiError(body []byte) string {
 		Title  string          `json:"title"`
 		Detail string          `json:"detail"`
 	}
+
 	_ = json.Unmarshal(body, &e)
+
 	var parts []string
 	for _, x := range e.Exception.List {
 		parts = append(parts, joined(" ", strconv.Itoa(x.Code), x.Text, strings.Join(x.Details, " ")))
 	}
+
 	// an object for rate limits; a bare number in problem details
 	var st statusInfo
 	if json.Unmarshal(e.Status, &st) == nil {
 		parts = append(parts, strings.Join(st.Details, " "))
 	}
+
 	parts = append(parts, joined(": ", e.Title, e.Detail))
 	if msg := joined("; ", parts...); msg != "" {
 		return msg
 	}
+
 	return strings.TrimSpace(string(body))
 }
 
@@ -221,8 +245,10 @@ func apiJSON(method, url, bearer string, in, out any) error {
 	if err != nil {
 		return err
 	}
+
 	if err := json.Unmarshal(body, out); err != nil {
 		return fmt.Errorf("%s %s: %w", method, url, err)
 	}
+
 	return nil
 }

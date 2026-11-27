@@ -20,16 +20,19 @@ func TestInvoiceRender(t *testing.T) {
 		Account: "PL61109010140000071219812874", SWIFT: "WBKPPLPP",
 		Extras: []Extra{{Key: "Uwagi", Value: xmlText(strings.Repeat("ż", 300))}},
 	}
+
 	if err := inv.normalise(); err != nil {
 		t.Fatal(err)
 	}
 	if err := inv.validate(); err != nil {
 		t.Fatal(err)
 	}
+
 	out, err := inv.render(testNow)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, want := range []string{
 		"<NIP>1234563218</NIP>",
 		"<KodUE>DE</KodUE>\n      <NrVatUE>123</NrVatUE>\n      <Nazwa>Kupiec &amp; Co</Nazwa>",
@@ -50,6 +53,7 @@ func TestInvoiceRender(t *testing.T) {
 			t.Errorf("missing %s\n%s", want, out)
 		}
 	}
+
 	if _, err := parseInvoiceHead(out); err != nil {
 		t.Errorf("the result does not read back as an FA invoice: %v", err)
 	}
@@ -76,6 +80,7 @@ func TestLineSums(t *testing.T) {
 				l.Qty(), l.Price(), l.Sum(), tc.wantQty, tc.wantP, tc.wantS)
 		}
 	}
+
 	inv := Invoice{Lines: []Line{{Quantity: 1, UnitPrice: 0.1}, {Quantity: 1, UnitPrice: 0.2}}}
 	if inv.Net() != "0.30" || inv.Gross() != "0.30" {
 		t.Errorf("net %s, gross %s", inv.Net(), inv.Gross())
@@ -93,16 +98,19 @@ func TestInvoiceVAT(t *testing.T) {
 			{Name: "Dystrybucja", Quantity: 1, UnitPrice: 25.60}},
 		DeclaredTotal: 53.628, // unrounded, as Invoify may carry it
 	}
+
 	if err := inv.normalise(); err != nil {
 		t.Fatal(err)
 	}
 	if err := inv.validate(); err != nil {
 		t.Fatal(err)
 	}
+
 	out, err := inv.render(testNow)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, want := range []string{
 		"<P_13_1>43.60</P_13_1>\n    <P_14_1>10.03</P_14_1>\n    <P_15>53.63</P_15>",
 		"<Zwolnienie>\n        <P_19N>1</P_19N>\n      </Zwolnienie>",
@@ -112,6 +120,7 @@ func TestInvoiceVAT(t *testing.T) {
 			t.Errorf("missing %s\n%s", want, out)
 		}
 	}
+
 	for _, unwanted := range []string{"P_13_7", "P_19A", "P_9B", "P_11A", ">zw<"} {
 		if strings.Contains(string(out), unwanted) {
 			t.Errorf("an invoice with VAT should not have %s", unwanted)
@@ -174,6 +183,7 @@ func TestNormaliseIDs(t *testing.T) {
 			t.Errorf("%s: %v", name, err)
 			continue
 		}
+
 		b := inv.Buyer
 		if b.NIP != tc.nip || b.VAT != tc.vat || string(b.OtherID) != tc.other ||
 			b.Country != tc.country {
@@ -197,6 +207,7 @@ func TestPolishDate(t *testing.T) {
 			t.Errorf("polishDate(%q) = %q, %v; want %q", in, got, err, want)
 		}
 	}
+
 	for _, bad := range []string{"", "01.03.2026", "2026-13-01", "2026-02-30"} {
 		if _, err := polishDate(bad); err == nil {
 			t.Errorf("polishDate(%q) should fail", bad)
@@ -211,6 +222,7 @@ func TestInvoiceValidate(t *testing.T) {
 			Buyer:  Party{Name: "B", Addr1: "B 2", NIP: "9999999999"},
 			Lines:  []Line{{Name: "U", Quantity: 1, UnitPrice: 10}}}
 	}
+
 	for name, breakIt := range map[string]func(*Invoice){
 		"no number":         func(i *Invoice) { i.Number = "" },
 		"bad currency":      func(i *Invoice) { i.Currency = "złoty" },
@@ -242,6 +254,7 @@ func TestInvoiceValidate(t *testing.T) {
 	} {
 		inv := base()
 		breakIt(inv)
+
 		err := inv.normalise()
 		if err == nil {
 			err = inv.validate()
@@ -250,6 +263,7 @@ func TestInvoiceValidate(t *testing.T) {
 			t.Errorf("%s: should be refused", name)
 		}
 	}
+
 	inv := base()
 	if err := inv.normalise(); err != nil || inv.validate() != nil {
 		t.Errorf("the base invoice should pass: %v %v", err, inv.validate())

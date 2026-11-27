@@ -39,6 +39,7 @@ func authenticate(cfg *Config) (string, error) {
 		if err == nil || !unanswered || try == loginAttempts {
 			return token, err
 		}
+
 		fmt.Fprintf(os.Stderr, "%s KSeF did not answer (%v) - trying again, %d of %d\n",
 			paint(os.Stderr, yellow, "[ WARN ]"), err, try+1, loginAttempts)
 		time.Sleep(pollInterval)
@@ -67,6 +68,7 @@ func login(cfg *Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	plain := cfg.Token + "|" + strconv.FormatInt(challenge.TimestampMs, 10)
 	encrypted, err := rsaOAEPEncrypt(pub, []byte(plain))
 	if err != nil {
@@ -116,10 +118,12 @@ func login(cfg *Config) (string, error) {
 		}
 		time.Sleep(pollInterval)
 	}
+
 	if op.Status.Code == 450 {
 		return "", errors.New("login rejected: the token is past its validity period - " +
 			"generate a new one in Aplikacja Podatnika (the Tokeny tab) and put it in KSEF_TOKEN")
 	}
+
 	if op.Status.Code != 200 {
 		return "", fmt.Errorf(
 			"login rejected: %d %s %v - check that the token was created for env=%s",
@@ -138,5 +142,6 @@ func login(cfg *Config) (string, error) {
 	if tokens.AccessToken.Token == "" {
 		return "", errors.New("login succeeded but KSeF returned no access token")
 	}
+
 	return tokens.AccessToken.Token, nil
 }

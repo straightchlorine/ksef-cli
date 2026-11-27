@@ -27,12 +27,14 @@ func (s statusInfo) text() string {
 	if len(s.Details) > 0 {
 		out += fmt.Sprint(" ", s.Details)
 	}
+
 	for _, k := range slices.Sorted(maps.Keys(s.Extensions)) {
 		// a duplicate's details already name the original invoice and session
 		if v := s.Extensions[k]; !strings.Contains(out, v) {
 			out += fmt.Sprintf(" %s=%s", k, v)
 		}
 	}
+
 	return out
 }
 
@@ -46,14 +48,17 @@ func cmdStatus(args []string) error {
 		referenceForm, "ksef send prints it"); err != nil {
 		return err
 	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
+
 	access, err := authenticate(cfg)
 	if err != nil {
 		return err
 	}
+
 	session := baseURLs[cfg.Env] + "/sessions/" + url.PathEscape(args[0])
 	var list struct {
 		Invoices []invoiceState `json:"invoices"`
@@ -61,6 +66,7 @@ func cmdStatus(args []string) error {
 	if err := apiJSON("GET", session+"/invoices?pageSize=100", access, nil, &list); err != nil {
 		return err
 	}
+
 	if len(list.Invoices) == 0 {
 		var s struct {
 			Status statusInfo `json:"status"`
@@ -68,6 +74,7 @@ func cmdStatus(args []string) error {
 		if err := apiJSON("GET", session, access, nil, &s); err != nil {
 			return err
 		}
+
 		return fmt.Errorf("no invoice reached this session (%s)", s.Status.text())
 	}
 
@@ -87,6 +94,7 @@ func cmdStatus(args []string) error {
 				inv.InvoiceNumber, inv.Status.text())
 		}
 	}
+
 	switch {
 	case rejected > 0:
 		return fmt.Errorf("%d of %d rejected", rejected, len(list.Invoices))
@@ -94,33 +102,40 @@ func cmdStatus(args []string) error {
 		return fmt.Errorf("%d of %d still processing - check again in a while",
 			waiting, len(list.Invoices))
 	}
+
 	if len(args) == 1 {
 		if len(list.Invoices) == 1 {
 			hint("Save its receipt with: ksef status " + args[0] + " FILE.upo.xml")
 		}
 		return nil
 	}
+
 	if len(list.Invoices) != 1 {
 		return fmt.Errorf("the session holds %d invoices, one UPO_FILE does not fit them",
 			len(list.Invoices))
 	}
+
 	upo, err := apiCall("GET", session+"/invoices/"+
 		url.PathEscape(list.Invoices[0].ReferenceNumber)+"/upo", access, nil)
 	if err != nil {
 		return err
 	}
+
 	// never over an existing file: a UPO next to an invoice marks it as sent
 	f, err := os.OpenFile(args[1], os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
 	}
+
 	if _, err := f.Write(upo); err != nil {
 		_ = f.Close() // the write error is the one to report
 		return err
 	}
+
 	if err := f.Close(); err != nil {
 		return err
 	}
+
 	field(os.Stdout, "UPO", args[1])
 	return nil
 }

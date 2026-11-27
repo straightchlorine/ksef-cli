@@ -20,6 +20,7 @@ func TestAESOpensslParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if want := "ksef-cli AES parity vector"; string(pt) != want {
 		t.Errorf("got %q, want %q", pt, want)
 	}
@@ -32,16 +33,19 @@ func TestAESRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if len(key) != 32 || len(iv) != 16 {
 			t.Fatalf("key/iv sizes %d/%d", len(key), len(iv))
 		}
 		if len(ct) != (n/16+1)*16 {
 			t.Errorf("n=%d: ciphertext length %d", n, len(ct))
 		}
+
 		pt, err := aesDecrypt(key, iv, ct)
 		if err != nil {
 			t.Fatalf("n=%d: %v", n, err)
 		}
+
 		if !bytes.Equal(msg, pt) {
 			t.Errorf("n=%d: round-trip mismatch", n)
 		}

@@ -17,6 +17,7 @@ func captured(t *testing.T, print func(w *os.File)) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	print(w)
 	_ = w.Close() // the reader sees EOF either way
 	out, _ := io.ReadAll(r)
@@ -30,6 +31,7 @@ func TestPrintList(t *testing.T) {
 		m.Buyer.Name = buyer
 		return m
 	}
+
 	got := captured(t, func(w *os.File) {
 		printList(w, []invoiceMeta{
 			inv("2026-04-02", "FV/1", "3333", "Müller GmbH", "Online"),
@@ -37,6 +39,7 @@ func TestPrintList(t *testing.T) {
 				"A very long buyer name that runs past the limit", "Offline"),
 		}, false)
 	})
+
 	want := "" +
 		"DATE        NUMBER        GROSS  BUYER                             MODE     KSEF NUMBER\n" +
 		"2026-04-02  FV/1    3333.00 EUR  Müller GmbH                       Online   K-FV/1\n" +
@@ -51,6 +54,7 @@ func TestPrintSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	head.Number, head.Total, head.Currency, head.VAT1 = "FV/1", "10.00", "EUR", "1.87"
 	head.Buyer.KodUE, head.Buyer.NrVatUE, head.Buyer.Name = "DE", "123", "Kupiec"
 	head.Buyer.NIP = ""
@@ -59,6 +63,7 @@ func TestPrintSummary(t *testing.T) {
 		{Name: "Usługa", Quantity: "2", Price: "5.00", Rate: "4.2", VATRate: "23"},
 		{Name: "Dojazd", Quantity: "1", Unit: "szt."}, {}, {}, {}}
 	got := captured(t, func(w *os.File) { printSummary(w, head) })
+
 	want := "" +
 		"  invoice: FV/1, issued 2026-02-01, sale 2026-01-01 to 2026-01-31\n" +
 		"  seller:  NIP 1234567890\n" +
@@ -79,6 +84,7 @@ func TestColourXML(t *testing.T) {
 	if plain := regexp.MustCompile(`\x1b\[[0-9;]*m`).ReplaceAll(got, nil); string(plain) != in {
 		t.Errorf("colouring changed the text:\n%s", plain)
 	}
+
 	want := "\x1b[2m<\x1b[0m\x1b[36mKodFormularza\x1b[0m " +
 		"\x1b[33mkodSystemowy\x1b[0m\x1b[2m=\x1b[0m\x1b[32m\"FA (3)\"\x1b[0m"
 	if !bytes.Contains(got, []byte(want)) {
@@ -97,6 +103,7 @@ func TestConfirm(t *testing.T) {
 			t.Errorf("answer %q: %v, %v", answer, got, err)
 		}
 	}
+
 	stdin = strings.NewReader("")
 	if _, err := confirm("?"); err == nil {
 		t.Error("no answer should be an error")
@@ -109,6 +116,7 @@ func TestWantShape(t *testing.T) {
 	if !isKsefNumber.MatchString(ksefNumberForm) || !isReference.MatchString(referenceForm) {
 		t.Error("an example form does not match its own check")
 	}
+
 	for id, want := range map[string]bool{
 		"1234563218-20260301-0123456789AB-CD":  true,
 		"1234567890-20240101-ABCDEF-123456-0F": true, // the 36-character form of KSeF 1.0
@@ -120,6 +128,7 @@ func TestWantShape(t *testing.T) {
 			t.Errorf("isKsefNumber(%q) = %v", id, got)
 		}
 	}
+
 	for id, want := range map[string]bool{
 		"20260301-SO-0000000001-0000000001-AA": true,
 		"SESSION":                              false,
@@ -129,6 +138,7 @@ func TestWantShape(t *testing.T) {
 			t.Errorf("isReference(%q) = %v", id, got)
 		}
 	}
+
 	if err := cmdPull([]string{"KSEF_NUMBER"}); err == nil ||
 		!strings.Contains(err.Error(), "ksef list") {
 		t.Errorf("pull with a placeholder: %v", err)
@@ -144,6 +154,7 @@ func TestStatusText(t *testing.T) {
 	s := statusInfo{Code: 440, Description: "Duplikat faktury",
 		Details:    []string{"Faktura o numerze KSeF: K-1 w sesji: S-1"},
 		Extensions: map[string]string{"originalKsefNumber": "K-1", "other": "x"}}
+
 	want := "440 Duplikat faktury [Faktura o numerze KSeF: K-1 w sesji: S-1] other=x"
 	if got := s.text(); got != want {
 		t.Errorf("got %q", got)

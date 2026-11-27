@@ -12,6 +12,7 @@ func writeConf(t *testing.T, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
+
 	t.Setenv("KSEF_CONFIG", path)
 	t.Setenv("KSEF_TOKEN", "")
 }
@@ -26,10 +27,12 @@ cache_dir='/tmp/ksef-test-cache'
 convert_options=--sale-date prev-month-end --paid
 unknown_key_from_other_tool=ignored
 `)
+
 	cfg, err := loadConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if cfg.Env != "demo" || cfg.NIP != "1234567890" || cfg.Token != "secret" ||
 		cfg.ConvertOptions != "--sale-date prev-month-end --paid" ||
 		cfg.CacheDir != "/tmp/ksef-test-cache" {
@@ -63,10 +66,12 @@ nip=1234567890
 ksef_token=       # zostaw puste i ustaw $KSEF_TOKEN w środowisku
 cache_dir=~/.cache/ksef
 `)
+
 	cfg, err := loadConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if cfg.Env != "test" || cfg.NIP != "1234567890" || cfg.Token != "" {
 		t.Errorf("got %+v", cfg)
 	}
@@ -75,10 +80,12 @@ cache_dir=~/.cache/ksef
 func TestTokenEnvOverride(t *testing.T) {
 	writeConf(t, "ksef_token=from-file\n")
 	t.Setenv("KSEF_TOKEN", "from-env")
+
 	cfg, err := loadConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if cfg.Token != "from-env" {
 		t.Errorf("got %q", cfg.Token)
 	}
@@ -97,10 +104,12 @@ func TestDefaults(t *testing.T) {
 	t.Setenv("KSEF_CONFIG", "")
 	t.Setenv("KSEF_TOKEN", "")
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
 	cfg, err := loadConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if cfg.Env != "test" || cfg.CacheDir == "" {
 		t.Errorf("got %+v", cfg)
 	}

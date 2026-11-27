@@ -49,6 +49,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	now := time.Now()
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
@@ -60,10 +61,12 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	reply := func(w http.ResponseWriter, status int, v any) {
 		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(v) // a client that left is the test's problem, not the fake's
 	}
+
 	mux := http.NewServeMux()
 	// on registers a handler that insists on the given bearer token ("" for none).
 	on := func(pattern, bearer string, h http.HandlerFunc) {
@@ -86,6 +89,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 			ValidTo:     tmpl.NotAfter,
 		}})
 	})
+
 	on("POST /auth/challenge", "", func(w http.ResponseWriter, _ *http.Request) {
 		if fakeLoginDrops.Load() > 0 {
 			fakeLoginDrops.Add(-1)
@@ -94,6 +98,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		}
 		reply(w, 200, map[string]any{"challenge": "chal-1", "timestampMs": 1700000000123})
 	})
+
 	on("POST /auth/ksef-token", "", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Challenge         string
@@ -101,6 +106,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 			EncryptedToken    string
 			PublicKeyID       string `json:"publicKeyId"`
 		}
+
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Errorf("ksef-token body: %v", err)
 		}
@@ -108,16 +114,19 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 			req.ContextIdentifier.Value != "1234567890" || req.PublicKeyID != "key-1" {
 			t.Errorf("ksef-token request: %+v", req)
 		}
+
 		ct, _ := base64.StdEncoding.DecodeString(req.EncryptedToken)
 		plain, err := rsa.DecryptOAEP(sha256.New(), nil, key, ct, nil)
 		if err != nil || string(plain) != "secret-token|1700000000123" {
 			t.Errorf("encryptedToken decrypts to %q, err %v", plain, err)
 		}
+
 		reply(w, 202, map[string]any{
 			"referenceNumber":     "ref-1",
 			"authenticationToken": map[string]string{"token": "auth-token"},
 		})
 	})
+
 	authPolls := 0
 	authStatus := func(w http.ResponseWriter, _ *http.Request) {
 		code := authCode
@@ -126,6 +135,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		}
 		reply(w, 200, map[string]any{"status": statusInfo{Code: code, Description: "desc"}})
 	}
+
 	on("GET /auth/rev2/ref-1", "auth-token", func(w http.ResponseWriter, r *http.Request) {
 		fakeRev2Polls.Add(1)
 		if fakeNoRev2 {
@@ -134,12 +144,14 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		}
 		authStatus(w, r)
 	})
+
 	on("GET /auth/ref-1", "auth-token", func(w http.ResponseWriter, r *http.Request) {
 		if !fakeNoRev2 {
 			t.Error("the old status endpoint was used although rev2 answers")
 		}
 		authStatus(w, r)
 	})
+
 	on("POST /auth/token/redeem", "auth-token", func(w http.ResponseWriter, _ *http.Request) {
 		reply(w, 200, map[string]any{"accessToken": map[string]string{"token": "access-token"}})
 	})
@@ -150,6 +162,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 			FormCode   struct{ SystemCode, SchemaVersion, Value string }
 			Encryption struct{ EncryptedSymmetricKey, InitializationVector, PublicKeyID string }
 		}
+
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Errorf("open session body: %v", err)
 		}
@@ -157,28 +170,34 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 			req.FormCode.Value != "FA" || req.Encryption.PublicKeyID != "key-1" {
 			t.Errorf("open session request: %+v", req)
 		}
+
 		wrapped, _ := base64.StdEncoding.DecodeString(req.Encryption.EncryptedSymmetricKey)
 		k, err := rsa.DecryptOAEP(sha256.New(), nil, key, wrapped, nil)
 		if err != nil {
 			t.Errorf("encryptedSymmetricKey: %v", err)
 		}
+
 		aesKey = k
 		aesIV, _ = base64.StdEncoding.DecodeString(req.Encryption.InitializationVector)
 		reply(w, 201, map[string]string{"referenceNumber": "20260301-SO-0000000001-0000000001-AA"})
 	})
+
 	invoices := "/sessions/online/20260301-SO-0000000001-0000000001-AA/invoices"
 	on("POST "+invoices, "access-token", func(w http.ResponseWriter, r *http.Request) {
 		if fakeDropsSend {
 			hangUp(w)
 			return
 		}
+
 		var req struct {
 			InvoiceHash, EncryptedInvoiceHash, EncryptedInvoiceContent string
 			InvoiceSize, EncryptedInvoiceSize                          int
 		}
+
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Errorf("send invoice body: %v", err)
 		}
+
 		ct, _ := base64.StdEncoding.DecodeString(req.EncryptedInvoiceContent)
 		plain, err := aesDecrypt(aesKey, aesIV, ct)
 		if err != nil || fakeInvoice != "" && string(plain) != fakeInvoice ||
@@ -186,10 +205,13 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 			sha256B64(ct) != req.EncryptedInvoiceHash || len(ct) != req.EncryptedInvoiceSize {
 			t.Errorf("invoice content, hashes or sizes are off (decrypt err %v)", err)
 		}
+
 		reply(w, 202, map[string]string{"referenceNumber": "inv-1"})
 	})
+
 	on("POST /sessions/online/20260301-SO-0000000001-0000000001-AA/close", "access-token",
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+
 	invoicePolls := 0
 	sentInvoice := "GET /sessions/20260301-SO-0000000001-0000000001-AA/invoices/inv-1"
 	on(sentInvoice, "access-token", func(w http.ResponseWriter, _ *http.Request) {
@@ -198,6 +220,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
+
 		st := statusInfo{Code: invoiceCode, Description: "desc"}
 		if invoicePolls++; invoicePolls == 1 {
 			st.Code = 100
@@ -205,8 +228,10 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		if st.Code == 440 {
 			st.Extensions = map[string]string{"originalKsefNumber": "ORIGINAL-KSEF-NUMBER"}
 		}
+
 		reply(w, 200, map[string]any{"ksefNumber": "KSEF-NUMBER-1", "status": st})
 	})
+
 	on(sentInvoice+"/upo", "access-token", func(w http.ResponseWriter, _ *http.Request) {
 		if fakeUPOFails {
 			w.WriteHeader(http.StatusNotFound)
@@ -224,8 +249,10 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 				ReferenceNumber: "inv-1", InvoiceNumber: "FV/1", KsefNumber: "KSEF-NUMBER-1",
 				Status: statusInfo{Code: invoiceCode, Description: "desc"}})
 		}
+
 		reply(w, 200, map[string]any{"invoices": invoices})
 	})
+
 	sessionItself := "GET /sessions/20260301-SO-0000000001-0000000001-AA"
 	on(sessionItself, "access-token", func(w http.ResponseWriter, _ *http.Request) {
 		reply(w, 200, map[string]any{"status": statusInfo{Code: 440, Description: "Sesja anulowana"}})
@@ -237,18 +264,22 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 			SubjectType string
 			DateRange   struct{ DateType, From, To string }
 		}
+
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Errorf("metadata query body: %v", err)
 		}
+
 		from, _ := time.Parse(time.RFC3339, req.DateRange.From)
 		to, err := time.Parse(time.RFC3339, req.DateRange.To)
 		fakeQueries.Add(1)
+
 		received := req.SubjectType == "Subject2"
 		if !received && req.SubjectType != "Subject1" ||
 			req.DateRange.DateType != "Issue" || err != nil ||
 			!to.After(from) || to.After(from.AddDate(0, 3, 0)) {
 			t.Errorf("metadata query: %+v", req)
 		}
+
 		page := r.URL.Query().Get("pageOffset")
 		resp := map[string]any{"hasMore": false, "isTruncated": false, "invoices": []any{}}
 		if from.Month() == time.January {
@@ -259,12 +290,15 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 				"buyer": map[string]string{"name": "Buyer"}, "invoicingMode": "Offline",
 				"seller": map[string]string{"name": "Seller"},
 			}}
+
 			if received {
 				resp["invoices"].([]map[string]any)[0]["invoiceNumber"] = "IN/" + page
 			}
 		}
+
 		reply(w, 200, resp)
 	})
+
 	stored := "GET /invoices/ksef/1234563218-20260301-0123456789AB-CD"
 	on(stored, "access-token", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(sampleInvoice))
@@ -274,10 +308,12 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 	baseURLs["fake"] = srv.URL
 	oldInterval := pollInterval
 	pollInterval = 0
+
 	t.Cleanup(func() {
 		srv.Close()
 		delete(baseURLs, "fake")
 		pollInterval = oldInterval
+
 		fakeDropsSend, fakeUPOFails, fakeSessionEmpty, fakeNoRev2 = false, false, false, false
 		fakeRev2Polls.Store(0)
 		fakeStatusFailures.Store(0)
@@ -285,6 +321,7 @@ func fakeKSeF(t *testing.T, authCode, invoiceCode int) *Config {
 		fakeQueries.Store(0)
 		fakeInvoice, stdin = sampleInvoice, os.Stdin
 	})
+
 	return &Config{Env: "fake", NIP: "1234567890", Token: "secret-token", CacheDir: t.TempDir()}
 }
 
@@ -334,6 +371,7 @@ func TestAuthenticateRetries(t *testing.T) {
 	if got, err := authenticate(cfg); err != nil || got != "access-token" {
 		t.Errorf("two unanswered logins should be ridden out, got %q, %v", got, err)
 	}
+
 	fakeLoginDrops.Store(3)
 	if _, err := authenticate(cfg); err == nil {
 		t.Error("three unanswered logins should be an error")

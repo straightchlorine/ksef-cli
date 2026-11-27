@@ -43,6 +43,7 @@ func TestSend(t *testing.T) {
 		res.UPOPath != strings.TrimSuffix(path, ".xml")+".upo.xml" {
 		t.Errorf("UPO %q at %q", upo, res.UPOPath)
 	}
+
 	// seller NIP, P_1 as DD-MM-YYYY, then the unpadded base64url SHA-256
 	hash := strings.NewReplacer("+", "-", "/", "_", "=", "").Replace(sha256B64([]byte(sampleInvoice)))
 	if want := "/invoice/1234567890/01-02-2026/" + hash; res.VerifyURL != want {
@@ -90,6 +91,7 @@ func TestSendUPOUnavailable(t *testing.T) {
 	cfg := fakeKSeF(t, 200, 200)
 	fakeUPOFails = true
 	path := writeInvoice(t, sampleInvoice)
+
 	res, err := sendInvoice(cfg, path)
 	if err != nil || res.KsefNumber != "KSEF-NUMBER-1" || res.UPOPath != "" {
 		t.Errorf("got %+v, %v", res, err)

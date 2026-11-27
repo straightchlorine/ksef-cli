@@ -70,6 +70,7 @@ func parseInvoiceHead(invoice []byte) (*invoiceHead, error) {
 	if h.Form.SystemCode == "" || h.Form.SchemaVersion == "" || h.SellerNIP == "" {
 		return nil, errors.New("not an FA invoice: KodFormularza or seller NIP missing")
 	}
+
 	return &h, nil
 }
 
@@ -80,6 +81,7 @@ func verificationURL(env string, h *invoiceHead, invoice []byte) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("invoice date P_1: %w", err)
 	}
+
 	sum := sha256.Sum256(invoice)
 	return fmt.Sprintf("%s/invoice/%s/%s/%s", qrURLs[env], h.SellerNIP,
 		issued.Format("02-01-2006"), base64.RawURLEncoding.EncodeToString(sum[:])), nil
@@ -106,18 +108,22 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	head, err := parseInvoiceHead(invoice)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+
 	verifyURL, err := verificationURL(cfg.Env, head, invoice)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+
 	upoPath := upoPathOf(path)
 	if _, err := os.Stat(upoPath); err == nil {
 		return nil, fmt.Errorf("%s exists - this invoice looks already sent", upoPath)
 	}
+
 	if cfg.NIP == "" {
 		cfg.NIP = head.SellerNIP
 	}
@@ -126,14 +132,17 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	key, iv, encrypted, err := aesEncrypt(invoice)
 	if err != nil {
 		return nil, err
 	}
+
 	pub, keyID, err := publicKeyFor(cfg, "SymmetricKeyEncryption")
 	if err != nil {
 		return nil, err
 	}
+
 	wrappedKey, err := rsaOAEPEncrypt(pub, key)
 	if err != nil {
 		return nil, err
@@ -142,6 +151,7 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 	var session, sentInvoice struct {
 		ReferenceNumber string `json:"referenceNumber"`
 	}
+
 	sessions := baseURLs[cfg.Env] + "/sessions"
 	err = apiJSON("POST", sessions+"/online", access, map[string]any{
 		"formCode": map[string]string{
@@ -158,6 +168,7 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	online := sessions + "/online/" + session.ReferenceNumber
 	err = apiJSON("POST", online+"/invoices", access, map[string]any{
 		"invoiceHash":             sha256B64(invoice),
@@ -174,6 +185,7 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// The invoice is in; a failed close only delays the session's own UPO.
 	if _, err := apiCall("POST", online+"/close", access, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "%s closing the session: %v\n", paint(os.Stderr, yellow, "[ WARN ]"), err)
@@ -182,6 +194,7 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 	var inv invoiceState
 	invoiceURL := sessions + "/" + session.ReferenceNumber + "/invoices/" +
 		sentInvoice.ReferenceNumber
+
 	// The invoice is with KSeF from here on, so a failing status call must not
 	// read as a failed send: retry it, and say "do not resend" if it keeps failing.
 	failures := 0
@@ -197,6 +210,7 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 		if err != nil {
 			failures++
 		}
+
 		if i == pollAttempts || failures == 5 {
 			why := "KSeF is still processing it"
 			if err != nil {
@@ -205,8 +219,10 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 			return nil, fmt.Errorf("sent, but %s - do not resend, check later with: "+
 				"ksef status %s", why, session.ReferenceNumber)
 		}
+
 		time.Sleep(pollInterval)
 	}
+
 	if inv.Status.Code != 200 {
 		return nil, fmt.Errorf("invoice rejected: %s (session %s)", inv.Status.text(),
 			session.ReferenceNumber)
@@ -214,6 +230,7 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 
 	res := &sent{KsefNumber: inv.KsefNumber, Session: session.ReferenceNumber, Head: head,
 		VerifyURL: verifyURL}
+
 	var upo []byte
 	for try := 0; try < 3; try++ {
 		if upo, err = apiCall("GET", invoiceURL+"/upo", access, nil); err == nil {
@@ -221,6 +238,7 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 		}
 		time.Sleep(pollInterval)
 	}
+
 	if err == nil {
 		err = os.WriteFile(upoPath, upo, 0o644)
 	}
@@ -233,6 +251,7 @@ func sendInvoice(cfg *Config, path string) (*sent, error) {
 	} else {
 		res.UPOPath = upoPath
 	}
+
 	return res, nil
 }
 
@@ -240,10 +259,12 @@ func cmdSend(args []string) error {
 	if len(args) != 1 {
 		return errors.New("send needs exactly one FILE.xml")
 	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
+
 	return sendAndReport(cfg, args[0], true)
 }
 
@@ -255,13 +276,17 @@ func sendAndReport(cfg *Config, path string, summary bool) error {
 	if err != nil {
 		return err
 	}
+
 	fmt.Printf("%s accepted, KSeF number %s\n", paint(os.Stdout, green, "[  OK  ]"),
 		paint(os.Stdout, bold, res.KsefNumber))
+
 	if summary {
 		printSummary(os.Stdout, res.Head)
 	}
+
 	field(os.Stdout, "session", res.Session)
 	field(os.Stdout, "UPO", res.UPOPath)
 	field(os.Stdout, "verify", res.VerifyURL)
+
 	return nil
 }

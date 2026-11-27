@@ -29,9 +29,11 @@ func invoifyJSON(edit func(string) string) []byte {
     "taxDetails": {"amount": 0}, "discountDetails": {"amount": 0},
     "shippingDetails": {"cost": 0}, "totalAmount": 250}
 }`
+
 	if edit != nil {
 		s = edit(s)
 	}
+
 	return []byte(s)
 }
 
@@ -42,14 +44,17 @@ func TestConvert(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	head, err := parseInvoiceHead(out)
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
+
 	if head.SellerNIP != "1234563218" || head.IssueDate != "2026-03-01" ||
 		head.Form.SystemCode != "FA (3)" {
 		t.Errorf("head %+v", head)
 	}
+
 	for _, want := range []string{
 		"<Nazwa>Jan &amp; Syn &lt;sp. j.&gt;</Nazwa>",
 		"<NIP>9999999999</NIP>",
@@ -67,6 +72,7 @@ func TestConvert(t *testing.T) {
 			t.Errorf("missing %s", want)
 		}
 	}
+
 	for _, unwanted := range []string{"KursWaluty", "<Platnosc>", "<Stopka>", "<Email>", "<P_8A>"} {
 		if strings.Contains(string(out), unwanted) {
 			t.Errorf("unexpected %s", unwanted)
@@ -85,6 +91,7 @@ func TestConvertForeign(t *testing.T) {
 			{"no":"2/A","effectiveDate":"2026-02-27","mid":4.3955}]}`))
 	}))
 	defer srv.Close()
+
 	old := nbpURL
 	nbpURL = srv.URL
 	defer func() { nbpURL = old }()
@@ -96,6 +103,7 @@ func TestConvertForeign(t *testing.T) {
 			return strings.Replace(s, `{"key": "nip", "value": "9999999999"}`, custom, 1)
 		})
 	}
+
 	for name, tc := range map[string]struct {
 		in   []byte
 		opts convertOpts
@@ -121,16 +129,19 @@ func TestConvertForeign(t *testing.T) {
 			t.Errorf("%s: %v", name, err)
 			continue
 		}
+
 		for _, want := range tc.want {
 			if !strings.Contains(string(out), want) {
 				t.Errorf("%s: missing %s\n%s", name, want, out)
 			}
 		}
 	}
+
 	unknown := foreign("Atlantis", "")
 	if _, err := convertInvoify(unknown, convertOpts{Rate: "4.5"}, testNow); err == nil {
 		t.Error("an unknown country without --buyer-country should be refused")
 	}
+
 	bad := foreign("Germany", `{"key": "VAT", "value": "143/153/21302"}`)
 	if _, err := convertInvoify(bad, convertOpts{Rate: "4.5"}, testNow); err == nil {
 		t.Error("a VAT field that is not an EU VAT number should be refused")
@@ -155,14 +166,17 @@ func TestConvertXMLInput(t *testing.T) {
     <taxDetails><amount>0</amount><taxID/></taxDetails>
     <totalAmount>250</totalAmount></details>
 </root>`)
+
 	fromXML, err := convertInvoify(in, convertOpts{}, testNow)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	fromJSON, err := convertInvoify(invoifyJSON(nil), convertOpts{}, testNow)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if string(fromXML) != string(fromJSON) {
 		t.Errorf("XML input gives\n%s\nJSON input gives\n%s", fromXML, fromJSON)
 	}
@@ -176,6 +190,7 @@ func TestConvertSaleAndPaidDates(t *testing.T) {
 			return strings.Replace(s, `"currency":`, `"dueDate": "`+date+`", "currency":`, 1)
 		})
 	}
+
 	for name, tc := range map[string]struct {
 		in   []byte
 		opts convertOpts
@@ -215,10 +230,12 @@ func TestConvertCarriesExtras(t *testing.T) {
 		return strings.Replace(s, `"currency":`,
 			`"purchaseOrderNumber": "PO-1", "paymentTerms": "7 dni", "currency":`, 1)
 	})
+
 	out, err := convertInvoify(in, convertOpts{Paid: true, Place: "Wrocław"}, testNow)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, want := range []string{
 		"<P_1M>Wrocław</P_1M>",
 		"<NrWiersza>1</NrWiersza>\n      <Klucz>Opis</Klucz>\n      <Wartosc>Opis &lt;1&gt;</Wartosc>",
@@ -230,9 +247,11 @@ func TestConvertCarriesExtras(t *testing.T) {
 			t.Errorf("missing %s\n%s", want, out)
 		}
 	}
+
 	if strings.Contains(string(out), "SWIFT") {
 		t.Error("SWIFT without a bank account has nowhere to go")
 	}
+
 	want := [][2]string{{"not set", "sale date (--sale-date)"}}
 	if got := convertNotes(out); !reflect.DeepEqual(got, want) {
 		t.Errorf("notes %q, want %q", got, want)
@@ -254,6 +273,7 @@ func TestSplitArgs(t *testing.T) {
 			t.Errorf("splitArgs(%q) = %q, %v; want %q", in, got, err, want)
 		}
 	}
+
 	if _, err := splitArgs(`--place "Nowy`); err == nil {
 		t.Error("an unclosed quote should be an error")
 	}
@@ -272,15 +292,18 @@ func TestCmdConvert(t *testing.T) {
 	if err := cmdConvert([]string{"--paid-date", "2026-03-05", in, out}); err != nil {
 		t.Fatal(err)
 	}
+
 	got, _ := os.ReadFile(out)
 	for _, want := range []string{"<P_1M>Nowy Sącz</P_1M>", "<DataZaplaty>2026-03-05<"} {
 		if !strings.Contains(string(got), want) {
 			t.Errorf("missing %s", want)
 		}
 	}
+
 	if strings.Contains(string(got), "P_8A") {
 		t.Error(`--unit "" should leave the unit out`)
 	}
+
 	if err := cmdConvert([]string{in, in}); err == nil {
 		t.Error("writing the result over the input should be refused")
 	}
@@ -295,11 +318,13 @@ func TestConvertVAT(t *testing.T) {
 			return strings.Replace(s, `"totalAmount": 250`, `"totalAmount": `+total, 1)
 		})
 	}
+
 	out, err := convertInvoify(withTax(`{"amount": "23", "amountType": "percentage"}`, "307.5"),
 		convertOpts{}, testNow)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, want := range []string{
 		"<P_13_1>250.00</P_13_1>\n    <P_14_1>57.50</P_14_1>\n    <P_15>307.50</P_15>",
 		"<P_9A>100.50</P_9A>\n      <P_11>201.00</P_11>\n      <P_12>23</P_12>",
@@ -309,6 +334,7 @@ func TestConvertVAT(t *testing.T) {
 			t.Errorf("missing %s\n%s", want, out)
 		}
 	}
+
 	for name, in := range map[string][]byte{
 		"net total":    withTax(`{"amount": 23, "amountType": "percentage"}`, "250"),
 		"fixed amount": withTax(`{"amount": 57.5, "amountType": "amount"}`, "307.5"),
@@ -322,6 +348,7 @@ func TestConvertVAT(t *testing.T) {
 			t.Errorf("%s: should be refused", name)
 		}
 	}
+
 	// an exemption basis from the options does not fit an invoice with VAT
 	in := withTax(`{"amount": 8, "amountType": "percentage"}`, "270")
 	if _, err := convertInvoify(in, convertOpts{Exemption: "art. 43"}, testNow); err == nil {
@@ -348,6 +375,7 @@ func TestConvertSend(t *testing.T) {
 	if err := cmdConvert([]string{"--send", in}); err == nil || exists(upo) {
 		t.Errorf("no answer: err %v, sent %v", err, exists(upo))
 	}
+
 	// anything but yes: written, not sent, no error
 	for _, answer := range []string{"n\n", "\n", "maybe\n"} {
 		stdin = strings.NewReader(answer)
@@ -355,10 +383,12 @@ func TestConvertSend(t *testing.T) {
 			t.Errorf("answer %q: err %v, written %v, sent %v", answer, err, exists(out), exists(upo))
 		}
 	}
+
 	stdin = strings.NewReader("Y\n")
 	if err := cmdConvert([]string{"--send", in}); err != nil || !exists(upo) {
 		t.Fatalf("answer Y: err %v, sent %v", err, exists(upo))
 	}
+
 	// the sent file must stay as KSeF has it: no second convert over it
 	before, _ := os.ReadFile(out)
 	for _, args := range [][]string{{"--send", in}, {in, out}} {
@@ -367,9 +397,11 @@ func TestConvertSend(t *testing.T) {
 			t.Errorf("%v over a sent invoice: %v", args, err)
 		}
 	}
+
 	if after, _ := os.ReadFile(out); string(after) != string(before) {
 		t.Error("the sent invoice file was changed")
 	}
+
 	// an .xml source has no default output name
 	xmlIn := filepath.Join(dir, "export.xml")
 	_ = os.WriteFile(xmlIn, []byte("<root/>"), 0o600)
@@ -382,6 +414,7 @@ func TestConvertRefuses(t *testing.T) {
 	replace := func(old, new string) func(string) string {
 		return func(s string) string { return strings.Replace(s, old, new, 1) }
 	}
+
 	noOpts := convertOpts{}
 	for name, tc := range map[string]struct {
 		edit func(string) string
