@@ -170,9 +170,19 @@ func (o convertOpts) apply(inv *Invoice, now time.Time) error {
 			return fmt.Errorf("currency %q is not a 3-letter code", inv.Currency)
 		}
 
+		// art. 31a ust. 1 and 2 ustawy o VAT: the day before the sale, unless the
+		// invoice came first - then the day before the invoice
+		// NOTE: the sale date stands for the day the tax obligation arises (art. 19a
+		// ust. 1). Where it arises with the invoice (ust. 5 pkt 3 and 4, e.g. rent),
+		// pass --rate-date.
 		rateDate := o.RateDate
 		if rateDate == "" {
-			rateDate = issued.AddDate(0, 0, -1).Format(time.DateOnly)
+			day := issued
+			if sold, err := time.Parse(time.DateOnly, inv.SaleDate); err == nil && sold.Before(issued) {
+				day = sold
+			}
+
+			rateDate = day.AddDate(0, 0, -1).Format(time.DateOnly)
 		}
 
 		rate, err := nbpRate(inv.Currency, rateDate)

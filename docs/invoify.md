@@ -76,8 +76,14 @@ pól:
 | `--exemption TEKST`  | Podstawa zwolnienia. Domyślnie art. 113 ust. 1.         |
 
 Faktura w walucie obcej dostaje kurs średni NBP (tabela A, publiczne API)
-z ostatniego dnia roboczego przed datą wystawienia. `--rate-date` wybiera
-inny dzień, a `--rate` podaje kurs wprost.
+z ostatniego dnia roboczego przed datą sprzedaży albo, gdy faktura jest
+wystawiona wcześniej, przed datą wystawienia (art. 31a ust. 1 i 2 ustawy
+o VAT). `--rate-date` wybiera inny dzień, a `--rate` podaje kurs wprost.
+
+Program przyjmuje zasadę ogólną: obowiązek podatkowy powstaje w dniu sprzedaży
+(art. 19a ust. 1). Gdy powstaje z chwilą wystawienia faktury, np. przy najmie,
+usługach budowlanych czy stałej obsłudze prawnej i biurowej (art. 19a ust. 5
+pkt 3 i 4), podaj `--rate-date` z dniem poprzedzającym wystawienie faktury.
 
 Przykład faktury w euro dla kontrahenta z Niemiec:
 

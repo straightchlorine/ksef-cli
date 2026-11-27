@@ -76,8 +76,14 @@ Options go before the files. They cover values Invoify has no fields for:
 | `--exemption TEXT`   | Legal basis of the exemption. Defaults to art. 113(1).   |
 
 A foreign-currency invoice gets NBP's mid rate (table A, public API) from
-the last working day before the invoice date. `--rate-date` picks another
-day and `--rate` gives the rate directly.
+the last working day before the sale date or, when the invoice is issued
+earlier, before the invoice date (art. 31a ust. 1 and 2 of the VAT act).
+`--rate-date` picks another day and `--rate` gives the rate directly.
+
+The program follows the general rule: the tax obligation arises on the sale
+date (art. 19a ust. 1). Where it arises when the invoice is issued, as for
+rent, construction services or permanent legal and office services (art. 19a
+ust. 5 pkt 3 and 4), pass `--rate-date` with the day before the invoice date.
 
 An example of a euro invoice for a customer in Germany:
 

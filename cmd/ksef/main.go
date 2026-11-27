@@ -51,6 +51,9 @@ Subcommands:
                                       when the invoice has a bank account)
                 --rate N              exchange rate, instead of NBP's
                 --rate-date DATE      NBP's rate for that day or the last before
+                                      (default: the last working day before the
+                                      sale date, or before the invoice date when
+                                      the invoice comes first)
                 --buyer-country XX    when the country is not recognised
                 --buyer-id TEXT       buyer's foreign tax or register number
                 --unit TEXT           unit of measure for every line

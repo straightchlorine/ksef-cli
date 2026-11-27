@@ -83,10 +83,9 @@ func TestConvert(t *testing.T) {
 // A foreign buyer: country and VAT number come from the invoice, the rate from
 // NBP for the day before the invoice date.
 func TestConvertForeign(t *testing.T) {
+	var asked string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/eur/2026-02-18/2026-02-28/" {
-			t.Errorf("NBP path %s", r.URL.Path)
-		}
+		asked = r.URL.Path
 		_, _ = w.Write([]byte(`{"rates":[{"no":"1/A","effectiveDate":"2026-02-26","mid":4.2},
 			{"no":"2/A","effectiveDate":"2026-02-27","mid":4.3955}]}`))
 	}))
@@ -134,6 +133,27 @@ func TestConvertForeign(t *testing.T) {
 			if !strings.Contains(string(out), want) {
 				t.Errorf("%s: missing %s\n%s", name, want, out)
 			}
+		}
+	}
+
+	// the default rate day follows the sale date, unless the invoice comes first
+	for name, tc := range map[string]struct {
+		opts convertOpts
+		want string
+	}{
+		"no sale date":      {convertOpts{}, "/eur/2026-02-18/2026-02-28/"},
+		"sale before issue": {convertOpts{SaleDate: "2026-01-31"}, "/eur/2026-01-20/2026-01-30/"},
+		"sale month end":    {convertOpts{SaleDate: "prev-month-end"}, "/eur/2026-02-17/2026-02-27/"},
+		"sale after issue":  {convertOpts{SaleDate: "2026-03-15"}, "/eur/2026-02-18/2026-02-28/"},
+		"rate date wins": {
+			convertOpts{SaleDate: "2026-01-31", RateDate: "2026-02-10"}, "/eur/2026-01-31/2026-02-10/"},
+	} {
+		asked = ""
+		if _, err := convertInvoify(foreign("Germany", ""), tc.opts, testNow); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+		if asked != tc.want {
+			t.Errorf("%s: NBP asked %q, want %q", name, asked, tc.want)
 		}
 	}
 
