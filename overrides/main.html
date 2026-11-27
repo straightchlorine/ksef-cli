@@ -6,11 +6,17 @@
   {% set site = config.site_url %}
   {% set lang = config.theme.language %}
   {% if real_page %}
-    {#- Bilingual site built twice (PL at /, EN at /en/) with identical page paths.
-    hreflang pairs live in sitemap.xml: head alternates make Material's JS fetch
-    <page>/sitemap.xml (404). hooks/seo.py strips Material's own relative ones. -#}
+    {#- Alternate links to this page in Polish and English, plus an x-default, with absolute
+    URLs. overrides/sitemap.xml lists the same pairs. hooks/seo.py removes the relative
+    alternate links that Material adds. -#}
+    {#- Material's script requests a sitemap.xml under the address of every alternate link.
+    No such file exists under a page address, so each of these requests fails. The script
+    ignores the failure, but the browser console shows it. -#}
     {% set url_pl = config.extra.lang_bases.pl ~ page.url %}
     {% set url_en = config.extra.lang_bases.en ~ page.url %}
+    <link rel="alternate" hreflang="pl" href="{{ url_pl }}">
+    <link rel="alternate" hreflang="en" href="{{ url_en }}">
+    <link rel="alternate" hreflang="x-default" href="{{ url_pl }}">
   {% endif %}
   <meta property="og:site_name" content="{{ config.site_name }}">
   <meta property="og:locale" content="{{ config.extra.og_locale }}">
@@ -72,13 +78,14 @@
 {% block styles %}
   {{ super() }}
   <style>
-    {#- WCAG AA: Material's grey for code comments and variables is 4.47:1 on the light scheme -#}
+    {#- Material's default grey for code comments and variables is too light for the WCAG AA
+    text contrast minimum on the light scheme. This darker grey meets it. -#}
     [data-md-color-scheme=default] {
       --md-code-hl-comment-color: #626262;
       --md-code-hl-variable-color: #626262;
     }
     .md-footer { --md-footer-fg-color--lighter: hsla(0, 0%, 100%, 0.6); }
-    {#- links inside text need more than colour to stand out -#}
+    {#- Links inside text are underlined, so colour is not the only cue that marks them. -#}
     .md-typeset a:not(.headerlink):not(.md-content__button):not(.md-button) {
       text-decoration: underline;
       text-decoration-thickness: 1px;
